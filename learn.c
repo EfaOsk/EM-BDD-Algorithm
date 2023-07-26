@@ -45,7 +45,7 @@ DdNode *build_F_single_seq_O(DdManager *manager, int N, int M, int T, DdNode *AS
             Cudd_Ref(FO[t][i]);
 
             for (int j = 0; j < N; j++) {
-                DdNode *temp = Cudd_bddAnd(manager, AS[i][t-1][j], AO[i][t][O[t]]);
+                DdNode *temp = Cudd_bddAnd(manager, AS[i][t-1][j], AO[j][t][O[t]]);
                 Cudd_Ref(temp);
 
                 DdNode *recursive = Cudd_bddAnd(manager, temp, FO[t+1][j]);
@@ -59,6 +59,7 @@ DdNode *build_F_single_seq_O(DdManager *manager, int N, int M, int T, DdNode *AS
                 Cudd_RecursiveDeref(manager, recursive);
 
                 FO[t][i] = disjunction;
+                Cudd_RecursiveDeref(manager, disjunction);
                 Cudd_Ref(FO[t][i]);
             }
         }
@@ -76,13 +77,21 @@ DdNode *build_F_single_seq_O(DdManager *manager, int N, int M, int T, DdNode *AS
         Cudd_Ref(FO[0][i]);
 
         Cudd_RecursiveDeref(manager, temp);
+        Cudd_RecursiveDeref(manager, recursive);
     }
 
     DdNode *FO_ = Cudd_ReadLogicZero(manager);
+    Cudd_Ref(FO_);
     for (int i = 0; i < N; i++) {
         FO_ = Cudd_bddOr(manager, FO_, FO[0][i]);
     }
 
+    for (int t = 0; t < T+1; t++) {
+        for (int i = 0; i < N; i++) {
+            Cudd_RecursiveDeref(manager, FO[t][i]);
+        }
+    }
+    // Cudd_RecursiveDeref(manager, FO_);
     return FO_;
 
 }
@@ -111,6 +120,7 @@ void encode_variables(DdManager *manager, int N, int M, int T, DdNode *AS1[N], D
         for (int t = 0; t < T; t++) {
             for (int o = 0; o < M - 1; o++) {
                 AO_enc[u][t][o] = Cudd_bddNewVar(manager);
+                Cudd_Ref(AO_enc[u][t][o]);
             }
         }
     }
@@ -140,9 +150,24 @@ void encode_variables(DdManager *manager, int N, int M, int T, DdNode *AS1[N], D
         }
     }
 
+    // for (int u = 0; u < N; u++) {
+    //     for (int t = 0; t < T; t++) {
+    //         for (int o = 0; o < M; o++) {
+    //             Cudd_RecursiveDeref(manager, AO[u][t][o]);
+    //         }
+    //     }
+    // }
+    for (int u = 0; u < N; u++) {
+        for (int t = 0; t < T; t++) {
+            for (int o = 0; o < M-1; o++) {
+                Cudd_RecursiveDeref(manager, AO_enc[u][t][o]);
+            }
+        }
+    }
     // Encode AS1
     for (int u = 0; u < N - 1; u++) {
         AS1_enc[u] = Cudd_bddNewVar(manager);
+        Cudd_Ref(AS1_enc[u]);
     }
 
     for (int u = 0; u < N; u++) {
@@ -165,6 +190,12 @@ void encode_variables(DdManager *manager, int N, int M, int T, DdNode *AS1[N], D
             Cudd_Ref(AS1[u]);
         }
     }
+    // for (int u = 0; u < N; u++) {
+    //     Cudd_RecursiveDeref(manager, AS1[u]);
+    // }
+    for (int u = 0; u < N-1; u++) {
+        Cudd_RecursiveDeref(manager, AS1_enc[u]);
+    }
 
     // Encode AS
     for (int u = 0; u < N; u++) {
@@ -175,7 +206,7 @@ void encode_variables(DdManager *manager, int N, int M, int T, DdNode *AS1[N], D
         }
     }
     for (int u = 0; u < N; u++) {
-        for (int t = 0; t < T; t++) {
+        for (int t = 0; t < T-1; t++) {
             for (int v = 0; v < N; v++) {
                 if (v == 0) {
                     AS[u][t][0] = AS_enc[u][t][0];
@@ -196,6 +227,21 @@ void encode_variables(DdManager *manager, int N, int M, int T, DdNode *AS1[N], D
                     }
                     Cudd_Ref(AS[u][t][v]);
                 }
+            }
+        }
+    }
+
+    // for (int u = 0; u < N; u++) {
+    //     for (int t = 0; t < T-1; t++) {
+    //         for (int v = 0; v < N; v++) {
+    //             Cudd_RecursiveDeref(manager, AS[u][t][v]);
+    //         }
+    //     }
+    // }
+    for (int u = 0; u < N; u++) {
+        for (int t = 0; t < T-1; t++) {
+            for (int v = 0; v < N-1; v++) {
+                Cudd_RecursiveDeref(manager, AS_enc[u][t][v]);
             }
         }
     }
@@ -220,29 +266,30 @@ DdNode **build_F_all_seq(DdManager *manager, int N, int M, int T) {
     DdNode *AO[N][T][M];        // AO[u][t][o] := "O^u_t = o"
 
 
-    encode_variables(manager, N, M, T, AS1, AS, AO);
+    // encode_variables(manager, N, M, T, AS1, AS, AO);
 
     // If not encode, set the initial varables
-        // for (int u = 0; u < N; u++){
-        //     for (int t = 0; t < T; t++){
-        //         for (int o = 0; o < M; o++){
-        //             AO[u][t][o] = Cudd_bddNewVar(manager);
-        //         }
-        //     }
-        // }
+        for (int u = 0; u < N; u++){
+            for (int t = 0; t < T; t++){
+                for (int o = 0; o < M; o++){
+                    AO[u][t][o] = Cudd_bddNewVar(manager);
+                }
+            }
+        }
 
-        // for (int u = 0; u < N; u++){
-        //     AS1[u] = Cudd_bddNewVar(manager);
-        // }
+        for (int u = 0; u < N; u++){
+            AS1[u] = Cudd_bddNewVar(manager);
+        }
 
-        // for (int u = 0; u < N; u++){
-        //     for (int t = 0; t < T-1; t++){
-        //         for (int v = 0; v < N; v++){
-        //             AS[u][t][v] = Cudd_bddNewVar(manager);
-        //         }
-        //     }
-        // }
-
+        for (int u = 0; u < N; u++){
+            for (int t = 0; t < T-1; t++){
+                for (int v = 0; v < N; v++){
+                    AS[u][t][v] = Cudd_bddNewVar(manager);
+                }
+            }
+        }
+    
+    // encode_variables(manager, N, M, T, AS1, AS, AO);
 
 
     // Calculate the total number of possible sequences
@@ -265,6 +312,8 @@ DdNode **build_F_all_seq(DdManager *manager, int N, int M, int T) {
         // Build FO for the current sequence
         // TODO: Remove BddToAdd
         F_all[i] = Cudd_BddToAdd(manager, build_F_single_seq_O(manager, N, M, T, AS1, AS, AO, sequence));
+        // F_all[i] = build_F_single_seq_O(manager, N, M, T, AS1, AS, AO, sequence);
+        // Cudd_RecursiveDeref(manager, F_all[i]);
 
     }
 
@@ -296,6 +345,41 @@ struct DoubleArray Backward(DdManager *manager, DdNode *bdd, struct HMM M)
 
     // DdGen *tmp = Cudd_FirstNode(manager, )
     return (struct DoubleArray){};
+}
+
+unsigned int countUniqueNodes(DdManager *manager, int n, DdNode **bdds) {
+    DdGen *gen;
+    DdNode *node;
+    int count = 0;
+
+    // Create a set to store unique node addresses
+    int initialNodeCount = Cudd_ReadNodeCount(manager);
+    int maxNodeCount = initialNodeCount * 2; // To avoid resizing
+    void **nodeSet = (void **)malloc(maxNodeCount * sizeof(void *));
+    assert(nodeSet != NULL);
+
+    for (int j = 0; j<n; j++){
+        // Iterate over nodes and count unique nodes
+        Cudd_ForeachNode(manager, bdds[j], gen, node) {
+            // Check if the node address is already in the set
+            int i;
+            for (i = 0; i < count; i++) {
+                if (node == nodeSet[i])
+                    break;
+            }
+
+            // If the node is not in the set, add it and increment count
+            if (i == count) {
+                nodeSet[count] = node;
+                count++;
+            }
+        }
+    }
+
+    // Free the memory used by the node set
+    free(nodeSet);
+
+    return count;
 }
 
 /**
@@ -336,16 +420,30 @@ struct HMM learn(const int N, const int M, int T, int O[T])
     */
 
     // Step 1 build (S)BDD
-    DdManager *manager = Cudd_Init(0,0,CUDD_UNIQUE_SLOTS,CUDD_CACHE_SLOTS,0);    
+    DdManager *manager = Cudd_Init(0,0,CUDD_UNIQUE_SLOTS,CUDD_CACHE_SLOTS, 100000);    
     DdNode **F_all = build_F_all_seq(manager, N, M, T);
+
+    // ChatGPT, what sould I put as the number of minterms here?
+
     // printf("DdManager nodes: %d | ", Cudd_DagSize(F_all)); /*Reports the number of live nodes in BDDs and ADDs*/
+    printf("N = %d | ", N );
+    printf("M = %d | ", M );
+    printf("Encode: TRUE | ");
     printf("DdManager vars: %d | ", Cudd_ReadSize(manager) ); /*Returns the number of BDD variables in existence*/
+    printf("DdManager nodes: %d | ", countUniqueNodes(manager, pow(M,T), F_all)); // Cudd_ReadNodeCount(manager) );/*Reports the number of live nodes in BDDs and ADDs*/
     printf("DdManager reorderings: %d | ", Cudd_ReadReorderings(manager) ); /*Returns the number of times reordering has occurred*/
     printf("DdManager memory: %ld \n", Cudd_ReadMemoryInUse(manager) ); /*Returns the memory in use by the manager measured in bytes*/
-    // Cudd_PrintDebug(manager, F_all, 2, 4);
+    // Cudd_PrintDebug(manager, F_all[0], 2, 4);
 
     char filename[30];
     sprintf(filename, "./graph/graph.dot"); /*Write .dot filename to a string*/
+
+    sprintf(filename, "graphs/test_.dot"); /*Write .dot filename to a string*/
+    FILE *outfile; // output file pointer for .dot file
+    outfile = fopen(filename,"w");
+    Cudd_DumpDot(manager, pow(M, T), F_all, NULL, NULL, outfile);
+    fclose(outfile);
+
     // bdd = Cudd_BddToAdd(manager, bdd); 
     // write_dd(manager, bdd, filename);
     Cudd_Quit(manager);

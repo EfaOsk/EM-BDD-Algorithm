@@ -14,8 +14,8 @@
 
 int main (int argc, char *argv[])
 {
-    const int N = 2;
-    const int M = 2;
+    const int N = atoi(argv[1]);
+    const int M = atoi(argv[2]);
 
 
     // The observation O
