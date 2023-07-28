@@ -19,7 +19,7 @@ int main (int argc, char *argv[])
 
 
     // The observation O
-    const int T = 2;
+    const int T = 5;
     int O[T];
     O[0]= 0;
     O[1]= 1;
