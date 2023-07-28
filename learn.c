@@ -410,7 +410,7 @@ struct HMM learn(const int N, const int M, int T, int O[T])
     // printf("DdManager nodes: %d | ", Cudd_DagSize(F_all)); /*Reports the number of live nodes in BDDs and ADDs*/
     printf("N = %d | ", N );
     printf("M = %d | ", M );
-    printf("Encode: FALSE | ");
+    printf("Encode: TRUE | ");
     printf("DdManager vars: %d | ", Cudd_ReadSize(manager) ); /*Returns the number of BDD variables in existence*/
     printf("DdManager nodes: %ld | ", Cudd_ReadNodeCount(manager) ); // countUniqueNodes(manager, pow(M,T), F_all) );/*Reports the number of live nodes in BDDs and ADDs*/
     printf("DdManager reorderings: %d | ", Cudd_ReadReorderings(manager) ); /*Returns the number of times reordering has occurred*/
