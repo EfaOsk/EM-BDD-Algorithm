@@ -1,31 +1,32 @@
-#include <sys/types.h>
-#include <sys/time.h>
 #include <stdio.h>
-#include <string.h>
-#include <time.h>
-#include <math.h>
 #include <stdlib.h>
-#include "cudd.h"
+#include <stdbool.h>
 
 #include "HMM.h"
 #include "learn.h"
 
+int main(int argc, char *argv[]) {
+    // Check for the correct number of arguments
+    if (argc != 4) {
+        fprintf(stderr, "Usage: %s N M T\n where:\n\tN = number of states\n\tM = alphabet size\n\tT = length of observation sequence\n", argv[0]);
+        return 1; // Return an error code
+    }
 
-
-int main (int argc, char *argv[])
-{
-    const int N = atoi(argv[1]);
-    const int M = atoi(argv[2]);
-
+    // Parse command-line arguments and validate them
+    int N, M, T;
+    if (sscanf(argv[1], "%d", &N) != 1 || sscanf(argv[2], "%d", &M) != 1 || sscanf(argv[3], "%d", &T) != 1) {
+        fprintf(stderr, "Invalid arguments. N, M, and T must be integers.\n");
+        return 1; // Return an error code
+    }
 
     // The observation O
-    const int T = 5;
     int O[T];
-    O[0]= 0;
-    O[1]= 1;
+    O[0] = 0;
+    O[1] = 1;
 
-
+    // Call the learn function
     struct HMM L = learn(N, M, T, O);
 
+    // Clean up and return
     return 0;
 }
