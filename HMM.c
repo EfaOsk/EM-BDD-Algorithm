@@ -159,3 +159,58 @@ void validate_hmm(const HMM *hmm) {
         assert(hmm->C[i] >= 0.0 && hmm->C[i] <= 1.0); // Raise an error if not in [0, 1]
     }
 }
+
+
+/**
+ * Generate a Graphviz DOT file representation of a Hidden Markov Model (HMM).
+ *
+ * @param hmm         A pointer to the HMM structure to be represented.
+ * @param dotFileName The name of the output DOT file.
+ */
+void draw_hmm(const HMM *hmm, const char *dotFileName) {
+    FILE *dotFile = fopen(dotFileName, "w");
+
+    if (dotFile == NULL) {
+        perror("Error opening DOT file");
+        return;
+    }
+
+    // Write DOT file header
+    fprintf(dotFile, "digraph HMM {\n");
+
+    // Write nodes for states
+    fprintf(dotFile, "  node [shape=circle];\n");
+    for (int i = 0; i < hmm->N; i++) {
+        fprintf(dotFile, "  S%d [label=\"S%d\"];\n", i, i);
+    }
+
+    // Write initial state probabilities
+    fprintf(dotFile, "  node [shape=box, style=filled, color=lightblue];\n");
+    fprintf(dotFile, "  I [label=\"Initial Probabilities\"];\n");
+    for (int i = 0; i < hmm->N; i++) {
+        fprintf(dotFile, "  I -> S%d [label=\"%.2f\"];\n", i, hmm->C[i]);
+    }
+
+    // Write transition probabilities
+    fprintf(dotFile, "  node [shape=box, style=filled, color=lightgreen];\n");
+    fprintf(dotFile, "  T [label=\"Transition Probabilities\"];\n");
+    for (int i = 0; i < hmm->N; i++) {
+        for (int j = 0; j < hmm->N; j++) {
+            fprintf(dotFile, "  S%d -> S%d [label=\"%.2f\"];\n", i, j, hmm->A[i][j]);
+        }
+    }
+
+    // Write observation probabilities
+    fprintf(dotFile, "  node [shape=box, style=filled, color=lightcoral];\n");
+    fprintf(dotFile, "  O [label=\"Observation Probabilities\"];\n");
+    for (int i = 0; i < hmm->N; i++) {
+        for (int j = 0; j < hmm->M; j++) {
+            fprintf(dotFile, "  S%d -> O%d [style=\"dashed\", label=\"%.2f\", dir=\"none\", color=\"gray\"];\n", i, j, hmm->B[i][j]);
+        }
+    }
+
+    // Write DOT file footer
+    fprintf(dotFile, "}\n");
+
+    fclose(dotFile);
+}
