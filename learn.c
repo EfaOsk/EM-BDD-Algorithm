@@ -534,6 +534,211 @@ DdNode **build_F_all_seq(DdManager *manager, int N, int M, int T) {
 
 
 /**
+ * @brief Calculate the edge probability in a SBDD reprentation of a HMM.
+ *
+ * This function calculates the probability of transitioning to an encoded state in a SBDD 
+ * reprentation of a HMM based on the provided parameters.
+ *
+ * @param hmm     A pointer to the HMM structure.
+ * @param i       The current state index.
+ * @param b       A flag indicating whether it's a true edge (b=0) or false edge (b=1).
+ *
+ * @return        The probability of transitioning to the encoded state.
+ *
+ * @note          The function uses the following formulas:
+ *                - For a true edge (b=0):
+ *                  \Prob{\langle c_i^{enc}, true\rangle} = \frac{\pi(i)}{\sum_{i'=i}^{N-1}\pi(i')}
+ *                - For a false edge (b=1):
+ *                  \Prob{\langle c_i^{enc}, false\rangle} = 
+ *                      \frac{
+ *                          \sum_{i'=i+1}^{N-1}\pi(i')
+ *                      }{
+ *                          \sum_{i'=i}^{N-1}\pi(i')
+ *                      }
+ */
+double get_prob_AS1_encoded(const HMM *hmm, int i, int b){
+
+    
+    if (b==0){ // false edge
+        double sum = 0.0;
+
+        for (int i0 = i; i0 < hmm->N; i0++){
+            printf("\t\t%f \n", hmm->C[i0]);
+            sum += hmm->C[i0];
+        }
+        double sum_ = 0.0;
+
+        for (int i0 = i+1; i0 < hmm->N; i0++){
+            printf("\t\t%f \n", hmm->C[i0]);
+            sum_ += hmm->C[i0];
+        }
+
+        // Sum_{i'=i+1}^{i=N-1} pi(i'/ Sum_{i'=i}^{i=N-1} pi(i') 
+        return sum_ / sum ;
+    } else { // true edge
+        double sum = 0.0;
+
+        for (int i0 = i; i0 < hmm->N; i0++){
+            printf("\t\t%f \n", hmm->C[i0]);
+            sum += hmm->C[i0];
+        }
+
+        //pi(i)/ Sum_{i'=i}^{i=N-1} pi(i') 
+        return (hmm->C[i]) / sum ;
+    }
+
+}
+
+/**
+ * @brief Calculate the edge probability in a SBDD reprentation of a HMM.
+ *
+ * This function calculates the probability of transitioning to an encoded state in a SBDD 
+ * reprentation of a HMM based on the provided parameters.
+ *
+ * @param hmm     A pointer to the HMM structure.
+ * @param i       The previus state index.
+ * @param j       The current state index.
+ * @param b       A flag indicating whether it's a true edge (b=0) or false edge (b=1).
+ *
+ * @return        The probability of transitioning to the encoded state.
+ *
+ * @note          The function uses the following formulas:
+ *                - For a true edge (b=0):
+ *                  \Prob{\langle d_{i,j}^{enc}, true\rangle} = 
+ *                      \frac{
+ * \                        a(i)(j)
+ *                      }{
+ *                          (\sum_{i'=i+1}^{N-1}\sum_{j'=0}^{N-1}   a(i')(j'))+(\sum_{j'=j}^{N-1} a(i)(j'))
+ *                      }
+ *                - For a false edge (b=1):
+ *                  \Prob{\langle d_i^{enc}, false\rangle} = 
+ *                      \frac{
+ *                          (\sum_{i'=i+1}^{N-1}\sum_{j'=0}^{N-1} a(i')(j'))+ (\sum_{j'=j+1}^{N-1} a(i)(j')
+ *                      }{
+ *                          \sum_{i'=i+1}^{N-1}\sum_{j'=0}^{N-1} a(i')(j'))+(\sum_{j'=j}^{N-1} a(i)(j'))
+ *                      }
+ */
+double get_prob_AS_encoded(const HMM *hmm, int i, int j, int b){
+
+    if (b==0){ // false edge
+        double sum_num = 0.0;
+
+        for (int i0 = i+1; i0 <= hmm->N - 1; i0++){
+            for (int j0 = 0; j0<= hmm->N -1; j0++){
+                sum_num += hmm->A[i0][j0];
+            }
+        }
+        for (int j0 = j+1; j0<= hmm->N -1; j0++){
+            sum_num += hmm->A[i][j0];
+        }
+
+        double sum_den = 0.0;
+
+        for (int i0 = i+1; i0 <= hmm->N - 1; i0++){
+            for (int j0 = 0; j0<= hmm->N -1; j0++){
+                sum_den += hmm->A[i0][j0];
+            }
+        }
+        for (int j0 = j; j0<= hmm->N -1; j0++){
+            sum_den += hmm->A[i][j0];
+        }
+
+        // 
+        return sum_num / sum_den ;
+    } else { // true edge
+        double sum_den = 0.0;
+
+        for (int i0 = i+1; i0 <= hmm->N - 1; i0++){
+            for (int j0 = 0; j0<= hmm->N -1; j0++){
+                sum_den += hmm->A[i0][j0];
+            }
+        }
+        for (int j0 = j; j0<= hmm->N -1; j0++){
+            sum_den += hmm->A[i][j0];
+        }
+
+        // a(i)(j) / 
+        return (hmm->A[i][j]) / sum_den ;
+    }
+
+}
+
+
+/**
+ * @brief Calculate the edge probability in a SBDD reprentation of a HMM.
+ *
+ * This function calculates the probability of transitioning to an encoded state in a SBDD 
+ * reprentation of a HMM based on the provided parameters.
+ *
+ * @param hmm     A pointer to the HMM structure.
+ * @param i       The current state index.
+ * @param j       The current observation index.
+ * @param b       A flag indicating whether it's a true edge (b=0) or false edge (b=1).
+ *
+ * @return        The probability of transitioning to the encoded state.
+ *
+ * @note          The function uses the following formulas:
+ *                - For a true edge (b=0):
+ *                  \Prob{\langle e_{i,j}^{enc}, true\rangle} = 
+ *                      \frac{
+ * \                        b(i)(j)
+ *                      }{
+ *                          (\sum_{i'=i+1}^{N-1}\sum_{j'=0}^{M-1} b(i')(j'))+(\sum_{j'=j}^{M-1} b(i)(j'))
+ *                      }
+ *                - For a false edge (b=1):
+ *                  \Prob{\langle e_i^{enc}, false\rangle} = 
+ *                      \frac{
+ *                          (\sum_{i'=i+1}^{N-1}\sum_{j'=0}^{M-1} b(i')(j'))+ (\sum_{j'=j+1}^{M-1} b(i)(j')
+ *                      }{
+ *                          \sum_{i'=i+1}^{N-1}\sum_{j'=0}^{M-1} b(i')(j'))+(\sum_{j'=j}^{M-1} b(i)(j'))
+ *                      }
+ */
+double get_prob_AO_encoded(const HMM *hmm, int i, int j, int b){
+
+    if (b==0){ // false edge
+        double sum_num = 0.0;
+
+        for (int i0 = i+1; i0 <= hmm->N - 1; i0++){
+            for (int j0 = 0; j0<= hmm->M -1; j0++){
+                sum_num += hmm->B[i0][j0];
+            }
+        }
+        for (int j0 = j+1; j0<= hmm->M -1; j0++){
+            sum_num += hmm->B[i][j0];
+        }
+
+        double sum_den = 0.0;
+
+        for (int i0 = i+1; i0 <= hmm->N - 1; i0++){
+            for (int j0 = 0; j0<= hmm->M -1; j0++){
+                sum_den += hmm->B[i0][j0];
+            }
+        }
+        for (int j0 = j; j0<= hmm->M -1; j0++){
+            sum_den += hmm->B[i][j0];
+        }
+
+        // 
+        return sum_num / sum_den ;
+    } else { // true edge
+        double sum_den = 0.0;
+
+        for (int i0 = i+1; i0 <= hmm->N - 1; i0++){
+            for (int j0 = 0; j0<= hmm->M -1; j0++){
+                sum_den += hmm->B[i0][j0];
+            }
+        }
+        for (int j0 = j; j0<= hmm->M -1; j0++){
+            sum_den += hmm->B[i][j0];
+        }
+
+        // a(i)(j) / 
+        return (hmm->B[i][j]) / sum_den ;
+    }
+
+}
+
+/**
  * @brief Backward prosedure where
  * 
  *      /Beta(x, n) = probability that paths logicallyreach the terminal node x from node n
@@ -606,7 +811,36 @@ HMM* learn(HMM *hypothesis_hmm, int T, int O[T])
     
 
     DdNode **F_all = build_F_all_seq(manager, N, M, T);
+    
+        // test probabilty: ToDo: Remove :P
+        // for (int u = 0; u < N - 1; u++) {
+        //     printf("\t%f \n", get_prob_AS1_encoded(hypothesis_hmm, u, 1));
+        //     printf("\t%f \n\n", get_prob_AS1_encoded(hypothesis_hmm, u, 0));
+        // }
+        // for (int u = 0; u < N; u++) {
+        //     for (int t = 0; t < T-1; t++) {
+        //         for (int v = 0; v < N; v++) {
+        //             if ((v == N-1) && (u == N-1)){
 
+        //             } else {
+        //                 printf("\t%f \n", get_prob_AS_encoded(hypothesis_hmm, u, v, 1));
+        //                 printf("\t%f \n\n", get_prob_AS_encoded(hypothesis_hmm, u, v, 0));
+        //             }
+        //         }
+        //     }
+        // }
+        // for (int u = 0; u < N; u++) {
+        //     for (int t = 0; t < T; t++) {
+        //         for (int v = 0; v < M; v++) {
+        //             if ((v == M-1) && (u == N-1)){
+
+        //             } else {
+        //                 printf("\t%f \n", get_prob_AO_encoded(hypothesis_hmm, u, v, 1));
+        //                 printf("\t%f \n\n", get_prob_AO_encoded(hypothesis_hmm, u, v, 0));
+        //             }
+        //         }
+        //     }
+        // }
 
     // Step 2: initilize M (= some random HMM) 
         // ToDo currently input
