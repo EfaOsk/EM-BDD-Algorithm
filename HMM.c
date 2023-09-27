@@ -214,3 +214,45 @@ void draw_hmm(const HMM *hmm, const char *dotFileName) {
 
     fclose(dotFile);
 }
+
+
+double probability_single_sequence(const HMM *hmm, const int *observations, int T) {
+    int N = hmm->N;
+    int M = hmm->M;
+
+    // Allocate memory for the forward probabilities matrix
+    double **alpha = (double **)malloc(T * sizeof(double *));
+    for (int t = 0; t < T; t++) {
+        alpha[t] = (double *)malloc(N * sizeof(double));
+    }
+
+    // Initialize the first row of alpha with initial probabilities and observations
+    for (int i = 0; i < N; i++) {
+        alpha[0][i] = hmm->C[i] * hmm->B[i][observations[0]];
+    }
+
+    // Calculate the forward probabilities for the rest of the sequence
+    for (int t = 1; t < T; t++) {
+        for (int j = 0; j < N; j++) {
+            alpha[t][j] = 0.0;
+            for (int i = 0; i < N; i++) {
+                alpha[t][j] += alpha[t - 1][i] * hmm->A[i][j];
+            }
+            alpha[t][j] *= hmm->B[j][observations[t]];
+        }
+    }
+
+    // Calculate the total probability of the sequence
+    double p = 0.0;
+    for (int i = 0; i < N; i++) {
+        p += alpha[T - 1][i];
+    }
+
+    // Free allocated memory
+    for (int t = 0; t < T; t++) {
+        free(alpha[t]);
+    }
+    free(alpha);
+
+    return p;
+}

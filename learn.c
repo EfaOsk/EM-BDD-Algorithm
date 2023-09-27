@@ -606,7 +606,7 @@ double get_prob_AS1_encoded(const HMM *hmm, int i, int b){
  *                - For a true edge (b=0):
  *                  \Prob{\langle d_{i,j}^{enc}, true\rangle} = 
  *                      \frac{
- * \                        a(i)(j)
+ *                          a(i)(j)
  *                      }{
  *                          (\sum_{i'=i+1}^{N-1}\sum_{j'=0}^{N-1}   a(i')(j'))+(\sum_{j'=j}^{N-1} a(i)(j'))
  *                      }
