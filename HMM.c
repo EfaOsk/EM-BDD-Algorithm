@@ -1,30 +1,161 @@
 #include "HMM.h"
-#include<string.h>
+#include <stdlib.h>
+#include <math.h>
+#include <assert.h>
+
 
 /**
- * Initializes a Hidden Markov Model (HMM) structure.
+ * @brief Create a Hidden Markov Model (HMM) with the given parameters.
  *
- * @param N     The number of states.
- * @param M     The number of observations.
- * @param A     The state transition matrix.
- * @param B     The observation emission matrix.
- * @param C     The initial state distribution.
- * @param name  The name of the HMM.
- *
- * @return The initialized HMM structure.
+ * @param N     The number of states in the HMM.
+ * @param M     The number of observations in the HMM.
+ * @param name  The name or identifier for the HMM.
+ * @return      A pointer to the created HMM.
  */
-static struct HMM init(const int N, const int M, struct DoubleMatrix A, struct DoubleMatrix B, struct DoubleArray C, const char *name)
-{
+HMM* HMM_create(int N, int M, const char *name) {
+    HMM *hmm = malloc(sizeof(HMM));
+    if (hmm == NULL) {
+        // Handle memory allocation error
+        return NULL;
+    }
 
-    struct HMM ret=(struct HMM){
-        .N=N,
-        .M=M,
-        .A=A,
-        .B=B,
-        .C=C,
-		.name=strdup(name)
-        // .print=&print
-	};
-    return ret;
+    hmm->N = N;
+    hmm->M = M;
+    hmm->name = name;
+
+    // Allocate memory for A, B, and C matrices/vectors
+    hmm->A = (double **)malloc(N * sizeof(double *));
+    hmm->B = (double **)malloc(N * sizeof(double *));
+    hmm->C = (double *)malloc(N * sizeof(double));
+
+    if (hmm->A == NULL || hmm->B == NULL || hmm->C == NULL) {
+        fprintf(stderr, "Memory allocation failed\n");
+        free(hmm->A);
+        free(hmm->B);
+        free(hmm->C);
+        free(hmm);
+        return NULL;
+    }
+
+    // ToDo: Remove this
+    // Initialize A B and C 
+    for (int i = 0; i < N; i++) {
+        hmm->A[i] = (double *)malloc(N * sizeof(double));
+        hmm->B[i] = (double *)malloc(M * sizeof(double));
+        for (int j = 0; j < N; j++) {
+            hmm->A[i][j] = 0.0;
+        }
+        for (int j = 0; j < M; j++) {
+            hmm->B[i][j] = 0.0;
+        }
+        hmm->C[i] = 0.0;
+    }
+
+    return hmm;
 }
-const struct HMMClass HMM={.init=&init};
+
+/**
+ * @brief Destroy a Hidden Markov Model (HMM) and free its memory.
+ * 
+ * @param hmm A pointer to the HMM to be destroyed.
+ */
+void HMM_destroy(HMM *hmm) {
+    if (hmm != NULL) {
+        for (int i = 0; i < hmm->N; i++) {
+            free(hmm->A[i]);
+            free(hmm->B[i]);
+        }
+        free(hmm->A);
+        free(hmm->B);
+        free(hmm->C);
+        free(hmm);
+    }
+}
+
+/**
+ * @brief Print the details of a Hidden Markov Model (HMM) to the console.
+ * 
+ * @param hmm A pointer to the HMM
+ */
+void HMM_print(const HMM *hmm) {
+    if (hmm == NULL) {
+        fprintf(stderr, "Invalid hmm\n");
+        return;
+    }
+
+    printf("HMM Name: %s\n", hmm->name);
+    printf("Number of States (N): %d\n", hmm->N);
+    printf("Number of Observations (M): %d\n", hmm->M);
+
+    // Print A, B, and C 
+    printf("Transition Probability Matrix (A):\n");
+    for (int i = 0; i < hmm->N; i++) {
+        for (int j = 0; j < hmm->N; j++) {
+            printf("%lf ", hmm->A[i][j]);
+        }
+        printf("\n");
+    }
+
+    printf("Observation Probability Matrix (B):\n");
+    for (int i = 0; i < hmm->N; i++) {
+        for (int j = 0; j < hmm->M; j++) {
+            printf("%lf ", hmm->B[i][j]);
+        }
+        printf("\n");
+    }
+
+    printf("Initial State Probability (C):\n");
+    for (int i = 0; i < hmm->N; i++) {
+        printf("%lf ", hmm->C[i]);
+    }
+    printf("\n\n");
+}
+
+
+
+/**
+ * @brief Validate a Hidden Markov Model (HMM) to ensure it meets certain criteria.
+ * This function raises an error using the assert macro if the HMM is not valid.
+ *
+ * @param hmm   A pointer to the HMM.
+ */
+void validate_hmm(const HMM *hmm) {
+    int N = hmm->N;
+    int M = hmm->M;
+
+    // Check the sum of each row in matrix A
+    for (int i = 0; i < N; i++) {
+        double sum = 0.0;
+        for (int j = 0; j < N; j++) {
+            sum += hmm->A[i][j];
+        }
+        assert(fabs(sum - 1.0) < 1e-6); // Raise an error if the sum is not close to 1.0
+    }
+
+    // Check the sum of each row in matrix B
+    for (int i = 0; i < N; i++) {
+        double sum = 0.0;
+        for (int j = 0; j < M; j++) {
+            sum += hmm->B[i][j];
+        }
+        assert(fabs(sum - 1.0) < 1e-6); // Raise an error if the sum is not close to 1.0
+    }
+
+    // Check the sum of elements in vector C
+    double c_sum = 0.0;
+    for (int i = 0; i < N; i++) {
+        c_sum += hmm->C[i];
+    }
+    assert(fabs(c_sum - 1.0) < 1e-6); // Raise an error if the sum is not close to 1.0
+
+    // Check that all probabilities in matrices A and B are in [0, 1]
+    for (int i = 0; i < N; i++) {
+        for (int j = 0; j < N; j++) {
+            assert(hmm->A[i][j] >= 0.0 && hmm->A[i][j] <= 1.0); // Raise an error if not in [0, 1]
+        }
+        for (int j = 0; j < M; j++) {
+            assert(hmm->B[i][j] >= 0.0 && hmm->B[i][j] <= 1.0); // Raise an error if not in [0, 1]
+        }
+        assert(hmm->C[i] >= 0.0 && hmm->C[i] <= 1.0); // Raise an error if not in [0, 1]
+    }
+}
