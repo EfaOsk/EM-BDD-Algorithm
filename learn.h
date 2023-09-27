@@ -6,7 +6,7 @@
 #include "HMM.h"
 
 
-struct HMM learn(const int N, const int M, int T, int O[T]);
+HMM* learn(HMM *orignal_hmm, int T, int O[T]);
 
 
 #endif

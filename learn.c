@@ -570,7 +570,7 @@ struct DoubleArray Backward(DdManager *manager, DdNode *bdd, struct HMM M)
  * @param O       Observation sequence
  * @return struct HMM 
  */
-struct HMM learn(const int N, const int M, int T, int O[T])
+HMM* learn(HMM *hypothesis_hmm, int T, int O[T])
 {
     /*
 
@@ -596,6 +596,10 @@ struct HMM learn(const int N, const int M, int T, int O[T])
 
     */
 
+    // TODO make the  HMM N and M an input ?
+    int N = hypothesis_hmm->N;
+    int M = hypothesis_hmm->M;
+
     // Step 1 build (S)BDD
     DdManager *manager = Cudd_Init(0,0,CUDD_UNIQUE_SLOTS,CUDD_CACHE_SLOTS, 0);  
     // Cudd_AutodynEnable(manager, CUDD_REORDER_SAME);
@@ -603,32 +607,59 @@ struct HMM learn(const int N, const int M, int T, int O[T])
 
     DdNode **F_all = build_F_all_seq(manager, N, M, T);
 
-    // ChatGPT, what sould I put as the number of minterms here?
 
-    // printf("DdNodes: %ld \n", Cudd_ReadNodeCount(manager) );
-
-    // printf("DdManager nodes: %d | ", Cudd_DagSize(F_all)); /*Reports the number of live nodes in BDDs and ADDs*/
-    printf("N : %d | ", N );
-    printf("M : %d | ", M );
-    printf("T : %d | ", T );
-    printf("Encode: TRUE | ");
-    printf("DdManager vars: %d | ", Cudd_ReadSize(manager) ); /*Returns the number of BDD variables in existence*/
-    printf("DdManager nodes: %ld | ", Cudd_ReadNodeCount(manager) ); // countUniqueNodes(manager, pow(M,T), F_all) );/*Reports the number of live nodes in BDDs and ADDs*/
-    printf("DdManager reorderings: %d | ", Cudd_ReadReorderings(manager) ); /*Returns the number of times reordering has occurred*/
-    printf("DdManager memory: %ld \n", Cudd_ReadMemoryInUse(manager) ); /*Returns the memory in use by the manager measured in bytes*/
+    // Step 2: initilize M (= some random HMM) 
+        // ToDo currently input
 
 
-    char filename[30];
-    sprintf(filename, "./graph/graph.dot"); /*Write .dot filename to a string*/
 
-    FILE *outfile; // output file pointer for .dot file
-    outfile = fopen(filename,"w");
-    Cudd_DumpDot(manager, pow(M, T), F_all, NULL, NULL, outfile);
-    fclose(outfile);
 
-    // bdd = Cudd_BddToAdd(manager, bdd); 
-    // write_dd(manager, bdd, filename);
+    // Step 3: E-step
+    
+    // Step 3 (a) : Backward
+    
+    // Step 3 (b) : Forward
+    
+    // Step 3 (c) : Conditional Expectations
+
+
+    // Step 4: M-step
+    // Step 4 (a) : update M
+        
+
+    // Step 5: Calculate the log-likelyhood of M
+
+
+
+
+
+
+
+
+
+    // ToDo: remove (For Debuging):
+    // printf("N : %d | ", N );
+    // printf("M : %d | ", M );
+    // printf("T : %d | ", T );
+    // printf("Encode: TRUE | ");
+    // printf("DdManager vars: %d | ", Cudd_ReadSize(manager) ); /*Returns the number of BDD variables in existence*/
+    // printf("DdManager nodes: %ld | ", Cudd_ReadNodeCount(manager) ); // countUniqueNodes(manager, pow(M,T), F_all) );/*Reports the number of live nodes in BDDs and ADDs*/
+    // printf("DdManager reorderings: %d | ", Cudd_ReadReorderings(manager) ); /*Returns the number of times reordering has occurred*/
+    // printf("DdManager memory: %ld \n", Cudd_ReadMemoryInUse(manager) ); /*Returns the memory in use by the manager measured in bytes*/
+
+
+    // char filename[30];
+    // sprintf(filename, "./graph/graph.dot"); /*Write .dot filename to a string*/
+
+    // FILE *outfile; // output file pointer for .dot file
+    // outfile = fopen(filename,"w");
+    // Cudd_DumpDot(manager, pow(M, T), F_all, NULL, NULL, outfile);
+    // fclose(outfile);
+
+
     Cudd_Quit(manager);
 
-    return (struct HMM){};
+    // Step 6: Return the learned model
+
+    return hypothesis_hmm;
 }
