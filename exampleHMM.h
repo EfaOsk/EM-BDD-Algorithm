@@ -3,9 +3,12 @@
 
 
 #include <stdio.h>
-#include "cudd.h"
 #include "HMM.h"
 
-struct HMM HMM1();
+#define NUM_MODELS 10 // Number of HMM models to create
+
+extern HMM* example_models[NUM_MODELS];
+
+HMM** initialize_example_models();
 
 #endif
