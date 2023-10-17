@@ -1,0 +1,6 @@
+cd /mnt/c/Users/EfaOsk/Documents/GitHub/LearningBDDs/
+export CPATH=//mnt/c/Users/EfaOsk/Documents/GitHub/cudd-3.0.0/://mnt/c/Users/EfaOsk/Documents/GitHub/cudd-3.0.0/cudd://mnt/c/Users/EfaOsk/Documents/GitHub/cudd-3.0.0/util/
+
+
+.dot -> .png
+	dot -Tpng graphs/graph.dot -o graphs/outfile.png
