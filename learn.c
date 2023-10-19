@@ -311,32 +311,32 @@ void encode_variables(DdManager *manager, int N, int M, int T, DdNode *AS1[N], D
         }
     }
 
-    // Free AO_enc
-    for (int u = 0; u < N; u++) {
-        for (int t = 0; t < T; t++) {
-            free(AO_enc[u][t]);
-        }
-        free(AO_enc[u]);
-    }
-    free(AO_enc);
+    // // Free AO_enc
+    // for (int u = 0; u < N; u++) {
+    //     for (int t = 0; t < T; t++) {
+    //         free(AO_enc[u][t]);
+    //     }
+    //     free(AO_enc[u]);
+    // }
+    // free(AO_enc);
 
-    // Free AS_enc
-    for (int u = 0; u < N; u++) {
-        for (int t = 0; t < T - 1; t++) {
-            for (int v = 0; v < N - 1; v++) {
-                free(AS_enc[u][t][v]);
-            }
-            free(AS_enc[u][t]);
-        }
-        free(AS_enc[u]);
-    }
-    free(AS_enc);
+    // // Free AS_enc
+    // for (int u = 0; u < N; u++) {
+    //     for (int t = 0; t < T - 1; t++) {
+    //         for (int v = 0; v < N - 1; v++) {
+    //             free(AS_enc[u][t][v]);
+    //         }
+    //         free(AS_enc[u][t]);
+    //     }
+    //     free(AS_enc[u]);
+    // }
+    // free(AS_enc);
 
-    // Free AS1_enc
-    for (int u = 0; u < N - 1; u++) {
-        free(AS1_enc[u]);
-    }
-    free(AS1_enc);
+    // // Free AS1_enc
+    // for (int u = 0; u < N - 1; u++) {
+    //     free(AS1_enc[u]);
+    // }
+    // free(AS1_enc);
 
 }
 
@@ -548,7 +548,7 @@ DdNode **build_F_all_seq(DdManager *manager, int N, int M, int T) {
 
         DdNode* temp = build_F_single_seq_O(manager, N, M, T, AS1, AS, AO, sequence);
         // F_all[i] =  Cudd_BddToAdd(manager, Cudd_bddAnd(manager, C_A, temp)); 
-        F_all[i] =  Cudd_BddToAdd(manager, temp); 
+        F_all[i] =  temp;// Cudd_BddToAdd(manager, temp); 
         Cudd_Ref(F_all[i]);
         Cudd_RecursiveDeref(manager, temp);
 
@@ -794,40 +794,58 @@ double get_prob_AS1_direct(const HMM *hmm, int i, int b){
 
 
 
-unsigned int countUniqueNodes(DdManager *manager, DdNode *bdds) {
-    DdGen *gen;
-    DdNode *node;
-    int count = 0;
+// unsigned int countUniqueNodes(DdManager *manager, DdNode *bdds) {
+//     DdGen *gen;
+//     DdNode *node;
+//     int count = 0;
 
-    // Create a set to store unique node addresses
-    int initialNodeCount = Cudd_ReadNodeCount(manager);
-    int maxNodeCount = initialNodeCount * 2; // To avoid resizing
-    void **nodeSet = (void **)malloc(maxNodeCount * sizeof(void *));
-    assert(nodeSet != NULL);
+//     // Create a set to store unique node addresses
+//     int initialNodeCount = Cudd_ReadNodeCount(manager);
+//     int maxNodeCount = initialNodeCount * 2; // To avoid resizing
+//     void **nodeSet = (void **)malloc(maxNodeCount * sizeof(void *));
+//     assert(nodeSet != NULL);
 
-    // for (int j = 0; j<n; j++){
-        // Iterate over nodes and count unique nodes
-        Cudd_ForeachNode(manager, bdds, gen, node) {
-            // Check if the node address is already in the set
-            int i;
-            for (i = 0; i < count; i++) {
-                if (node == nodeSet[i])
-                    break;
-            }
+//     // for (int j = 0; j<n; j++){
+//         // Iterate over nodes and count unique nodes
+//         Cudd_ForeachNode(manager, bdds, gen, node) {
+//             // Check if the node address is already in the set
+//             int i;
+//             for (i = 0; i < count; i++) {
+//                 if (node == nodeSet[i])
+//                     break;
+//             }
 
-            // If the node is not in the set, add it and increment count
-            if (i == count) {
-                nodeSet[count] = node;
-                count++;
-            }
-        }
-    // }
+//             // If the node is not in the set, add it and increment count
+//             if (i == count) {
+//                 nodeSet[count] = node;
+//                 count++;
+//             }
+//         }
+//     // }
 
-    // Free the memory used by the node set
-    free(nodeSet);
+//     // Free the memory used by the node set
+//     free(nodeSet);
 
-    return count;
+//     return count;
+// }
+
+void printBDDNodes(DdManager *manager, DdNode *node) {
+    if (node == Cudd_ReadLogicZero(manager) || node == Cudd_Not(Cudd_ReadLogicZero(manager))) {
+        return;  // Terminal nodes (0 or 1)
+    }
+
+    // Print the node information
+    printf("Node: %p, Variable: %d, Low: %p, High: %p\n", (void *)node, Cudd_NodeReadIndex(node),
+           (void *)Cudd_NotCond(Cudd_E(node), Cudd_IsComplement(node)),
+           (void *)Cudd_NotCond(Cudd_T(node), Cudd_IsComplement(node)));
+
+    // Recursively print low and high children
+    printBDDNodes(manager, Cudd_E(node));
+    printBDDNodes(manager, Cudd_T(node));
 }
+
+// Global lookup table for memoization
+double* lookupTableBackwardTrue;
 
 /**
  * @brief Backward prosedure where
@@ -841,48 +859,93 @@ unsigned int countUniqueNodes(DdManager *manager, DdNode *bdds) {
  * @param manager 
  * @param bdd 
  * @param M 
- * @return struct DoubleArray 
+ * @return double
  */
-double* Backward(DdManager* manager, DdNode* bdd) {
-    int numVars = Cudd_ReadSize(manager); // Get the number of variables in the BDD
-    int numNodes = Cudd_ReadNodeCount(manager); // Get the number of nodes in the BDD
+double BackwardTrue(DdManager* manager, DdNode* bdd) {
 
-    // Initialize beta (B) arrays
-    double* B_1 = (double*)malloc(numNodes * sizeof(double));
-    double* B_0 = (double*)malloc(numNodes * sizeof(double));
+    if (bdd == Cudd_ReadLogicZero(manager)) {
+        // Terminal node: 0
+        return 0.0;
+    }
+    if (bdd == Cudd_Not(Cudd_ReadLogicZero(manager))) {
+        // Terminal node: 1
+        return 1.0;
+    }
 
-    printf("%d", countUniqueNodes(manager, bdd));
-    // if (B_1 == NULL || B_0 == NULL) {
-    //     // Handle memory allocation error
-    //     fprintf(stderr, "Memory allocation error\n");
-    //     exit(1);
-    // }
+    int index = Cudd_NodeReadIndex(bdd);
 
-    // // Initialize the beta values for the final time step
-    // for (int i = 0; i < numVars; i++) {
-    //     B_1[i] = 1.0;
-    //     B_0[i] = 1.0;
-    // }
+    // Check if the probability is already computed for this node
+    if (lookupTableBackwardTrue[index] >= 0.0) {
+        return lookupTableBackwardTrue[index];
+    }
 
-    // // Now, you can implement the backward pass loop over the BDD nodes
-    // // Note: You need to adapt this part based on your HMM model and BDD structure
-    // // In this loop, you'll update the B_1 and B_0 arrays based on your HMM model and BDD
 
-    // // Example loop structure for iterating through BDD nodes (modify as needed):
-    // for (int level = numVars - 1; level >= 0; level--) {
-    //     DdNode* levelNodes = Cudd_bddAndAbstract(manager, bdd, Cudd_bddIthVar(manager, level), Cudd_bddIthVar(manager, level));
-    //     // You will need to continue the logic here, considering your HMM model and BDD structure.
-    //     // Update B_1 and B_0 arrays based on the nodes in this level and their children.
-    //     // Example:
-    //     // B_1[level] = 0.5 * B_1[CUDD_TRUEINDEX] + 0.5 * B_1[CUDD_FALSEINDEX];
-    //     // B_0[level] = 0.5 * B_0[CUDD_TRUEINDEX] + 0.5 * B_0[CUDD_FALSEINDEX];
 
-    //     Cudd_RecursiveDeref(manager, levelNodes); // Free intermediate BDD nodes
-    // }
+    // Compute probabilities for the true and false children
+    DdNode* high = Cudd_E(bdd);
+    DdNode* low = Cudd_T(bdd);
 
-    return B_1;
+    // Calculate the probability for the current node
+    double prob_high = BackwardTrue(manager, high);
+    double prob_low = BackwardTrue(manager, low);
+    double prob = 0.5 * prob_high + 0.5 * prob_low;
+    lookupTableBackwardTrue[index] = prob; // Store in the lookup table
+
+
+    return prob;
 }
 
+
+// Global lookup table for memoization
+double* lookupTableBackwardFalse;
+
+/**
+ * @brief Backward prosedure where
+ * 
+ *      /Beta(x, n) = probability that paths logicallyreach the terminal node x from node n
+ * 
+ *  for level in vars: // from lowest level to highest
+ *      for node n in level:
+ *          B_0[n] = 0.5* B_0[Child(True)] + 0.5* B_0[Child(False)]
+ * 
+ * @param manager 
+ * @param bdd 
+ * @param M 
+ * @return double
+ */
+double BackwardFalse(DdManager* manager, DdNode* bdd) {
+
+    if (bdd == Cudd_ReadLogicZero(manager)) {
+        // Terminal node: 0
+        return 1.0;
+    }
+    if (bdd == Cudd_Not(Cudd_ReadLogicZero(manager))) {
+        // Terminal node: 1
+        return 0.0;
+    }
+
+    int index = Cudd_NodeReadIndex(bdd);
+
+    // Check if the probability is already computed for this node
+    if (lookupTableBackwardFalse[index] >= 0.0) {
+        return lookupTableBackwardFalse[index];
+    }
+
+
+
+    // Compute probabilities for the true and false children
+    DdNode* high = Cudd_E(bdd);
+    DdNode* low = Cudd_T(bdd);
+
+    // Calculate the probability for the current node
+    double prob_high = BackwardFalse(manager, high);
+    double prob_low = BackwardFalse(manager, low);
+    double prob = 0.5 * prob_high + 0.5 * prob_low;
+    lookupTableBackwardFalse[index] = prob; // Store in the lookup table
+
+
+    return prob;
+}
 
 /**
  * @brief This function builds an HMM that "best" fits a given observation sequence O with the given number of states and observations.
@@ -922,11 +985,8 @@ HMM* learn(HMM *hypothesis_hmm, int T, int O[T])
     */
 
     // TODO make the  HMM N and M an input ?
-    // int N = hypothesis_hmm->N;
-    // int M = hypothesis_hmm->M;
-
-    int N = 2;
-    int M = 2;
+    int N = hypothesis_hmm->N;
+    int M = hypothesis_hmm->M;
 
     // Step 1 build (S)BDD
     DdManager *manager = Cudd_Init(0,0,CUDD_UNIQUE_SLOTS,CUDD_CACHE_SLOTS, 0);  
@@ -976,6 +1036,17 @@ HMM* learn(HMM *hypothesis_hmm, int T, int O[T])
     // Step 3 (a) : Backward
     
     // Backward(manager, F_all[0]);    
+    // Initialize the lookup table with -1.0 (indicating no value computed)
+    lookupTableBackwardTrue = (double*)malloc(Cudd_ReadSize(manager) * sizeof(double));
+    lookupTableBackwardFalse = (double*)malloc(Cudd_ReadSize(manager) * sizeof(double));
+    for (int i = 0; i < Cudd_ReadSize(manager); i++) {
+        lookupTableBackwardTrue[i] = -1.0;
+        lookupTableBackwardFalse[i] = -1.0;
+    }
+    // double backward_probs = BackwardTrue(manager, F_all[0]);
+    // printf("Backward Probabilities: %f\n", backward_probs);
+    // backward_probs = BackwardFalse(manager, F_all[0]);
+    // printf("Backward Probabilities: %f\n", backward_probs);
 
     // Step 3 (b) : Forward
     
