@@ -802,8 +802,25 @@ double get_prob_AO_encoded(const HMM *hmm, int i, int j, int b){
 
 }
 
+double get_prob_encoded(const HMM *hmm, DdNode *n, int b) {
+    int id = Cudd_NodeReadIndex(n);
+    int x = lookup_table_variables[id][0];
+    int i = lookup_table_variables[id][1];
+    // int t = lookup_table_variables[id][2];
+    int j = lookup_table_variables[id][3];
 
-// Global lookup table for memoization
+    if (x == 0) {
+        return get_prob_AO_encoded(hmm, i, j, b);
+    } else if (x == 1) {
+        return get_prob_AS1_encoded(hmm, i, b);
+    } else if (x == 2) {
+        return get_prob_AS_encoded(hmm, i, j, b);
+    } else {
+        // error
+    }
+}
+
+
 double** lookupTableBackward;
 
 /**
@@ -840,10 +857,6 @@ double Backward(DdManager* manager, DdNode* bdd, const HMM *hmm, int b) {
     }
 
     int id = Cudd_NodeReadIndex(bdd);
-    int x = lookup_table_variables[id][0];
-    int i = lookup_table_variables[id][1];
-    // int t = lookup_table_variables[id][2];
-    int j = lookup_table_variables[id][3];
 
     // Check if the probability is already computed for this node
     if (lookupTableBackward[id][b] >= 0.0) {
@@ -857,27 +870,103 @@ double Backward(DdManager* manager, DdNode* bdd, const HMM *hmm, int b) {
     DdNode* low = Cudd_T(bdd);
 
     // Calculate the probability for the current node
-    // double prob_high = Backward(manager, high, b);
-    // double prob_low = Backward(manager, low, b);
     double prob_high, prob_low, prob;
-    if (x == 0) {
-        prob_high =  get_prob_AO_encoded(hmm, i, j, 1)*Backward(manager, high, hmm, b);
-        prob_low = get_prob_AO_encoded(hmm, i, j, 0)*Backward(manager, low, hmm, b);
-        prob = prob_low + prob_high;
-    }
-    else if (x == 1) {
-        prob_high =  get_prob_AS1_encoded(hmm, i, 1)*Backward(manager, high, hmm, b);
-        prob_low = get_prob_AS1_encoded(hmm, i, 0)*Backward(manager, low, hmm, b);
-        prob = prob_low + prob_high;
-    } else if (x == 2) {
-        prob_high =  get_prob_AS_encoded(hmm, i, j, 1)*Backward(manager, high, hmm, b);
-        prob_low = get_prob_AS_encoded(hmm, i, j, 0)*Backward(manager, low, hmm, b);
-        prob = prob_low + prob_high;
-    }
+    prob_high =  get_prob_encoded(hmm, bdd, 1)*Backward(manager, high, hmm, b);
+    prob_low = get_prob_encoded(hmm, bdd, 0)*Backward(manager, low, hmm, b);
+    prob = prob_low + prob_high;
     lookupTableBackward[id][b] = prob; // Store in the lookup table
 
 
     return prob;
+}
+
+// double** lookupTableForward;
+
+NodeWithForward *nodeData;
+
+int findNodeIndex(DdNode *searchNode, int numNodes) {
+    for (int i = 0; i < numNodes; i++) {
+        if (nodeData[i].node == searchNode) {
+            // Found the node in the list, return its index
+            return i;
+        }
+    }
+    // Node not found in the list
+    return -1; // You can choose a suitable sentinel value for "not found"
+}
+
+/**
+ * Calculate forward values for nodes in a Binary Decision Diagram (BDD).
+ *
+ * @param manager   The CUDD manager for the BDD operations.
+ * @param F_all     An array of BDD nodes representing the roots of the BDDs.
+ * @param hmm       A pointer to a Hidden Markov Model (HMM) or a similar probabilistic model.
+ * @param num_roots The number of BDD roots in the 'F_all' array.
+ */
+void CalculateForward(DdManager* manager, DdNode** F_all, const HMM *hmm, int num_roots) {
+    int numNodes = Cudd_ReadNodeCount(manager)+num_roots+2;
+    nodeData = (NodeWithForward *)malloc(numNodes* sizeof(NodeWithForward));
+
+    if (nodeData == NULL) {
+        // Handle memory allocation failure
+        perror("Memory allocation failed");
+        Cudd_Quit(manager);
+    }
+
+    DdNode *node;
+    DdGen *gen;
+    int index = 0;
+
+    int r= 1;
+    for (int r = 0; r<num_roots; r++){
+        Cudd_ForeachNode(manager, F_all[r], gen, node) {
+            int i;
+            for (i = 0; i < index; i++) {
+                if (node == nodeData[i].node)
+                    break;
+            }
+            // If the node is not in the set, add it
+            if (i == index) {
+                nodeData[index].node = node;
+                nodeData[index].forward0 = 0.0; 
+                nodeData[index].forward1 = 0.0; 
+                // printf("\t%d", index);
+                index++;
+            }
+        }
+        nodeData[index].node = F_all[r];
+        nodeData[index].forward1 = 1/ Backward(manager, F_all[r], hmm, 0);
+        nodeData[index].forward0 = 0;
+        index++;
+
+    }
+    
+    nodeData[index].node = Cudd_Not(Cudd_ReadLogicZero(manager));
+    nodeData[index].forward0 = 0.0;
+    nodeData[index].forward1 = 0.0;
+    index++;
+    nodeData[index].node = Cudd_ReadLogicZero(manager);
+    nodeData[index].forward0 = 0.0;
+    nodeData[index].forward1 = 0.0;
+    index++;
+
+    
+    for (int i = 0; i < index; i++){
+        node = nodeData[i].node;
+        // cheack for terminal nodes
+        if ((node !=  Cudd_Not(Cudd_ReadLogicZero(manager))) && (node !=  Cudd_ReadLogicZero(manager))){
+            int id_high = findNodeIndex(Cudd_E(node), index+1);
+            int id_low = findNodeIndex(Cudd_T(node), index+1);
+            nodeData[id_low].forward0 += nodeData[i].forward0*get_prob_encoded(hmm, node, 0);
+            nodeData[id_high].forward0 += nodeData[i].forward0*get_prob_encoded(hmm, node, 1);
+            nodeData[id_low].forward1 += nodeData[i].forward1*get_prob_encoded(hmm, node, 0);
+            nodeData[id_high].forward1 += nodeData[i].forward1*get_prob_encoded(hmm, node, 1);
+        }
+    }
+
+    for (int i = 0; i < index; i++){
+        printf("\t%f\t\t%f\n", nodeData[i].forward0, nodeData[i].forward1);
+    }
 }
 
 /**
@@ -985,13 +1074,15 @@ HMM* learn(HMM *hypothesis_hmm, int T, int O[T])
         lookupTableBackward[i][0] = -1.0;
         lookupTableBackward[i][1] = -1.0;
     }
-    // double backward_probs = Backward(manager, F_all[0], hypothesis_hmm, 0);
-    // printf("Backward Probabilities: %f\n", backward_probs);
-    // backward_probs = Backward(manager, F_all[0], hypothesis_hmm, 1);
-    // printf("Backward Probabilities: %f\n", backward_probs);
+    double backward_probs = Backward(manager, F_all[0], hypothesis_hmm, 0);
+    printf("Backward Probabilities: %f\n", backward_probs);
+    backward_probs = Backward(manager, F_all[0], hypothesis_hmm, 1);
+    printf("Backward Probabilities: %f\n", backward_probs);
 
     // Step 3 (b) : Forward
     
+    CalculateForward(manager, F_all, hypothesis_hmm, (int) pow(M, T));
+
     // Step 3 (c) : Conditional Expectations
 
 
@@ -1025,6 +1116,7 @@ HMM* learn(HMM *hypothesis_hmm, int T, int O[T])
 
     FILE *outfile; // output file pointer for .dot file
     outfile = fopen(filename,"w");
+    printf("%f\n", pow(M, T));
     Cudd_DumpDot(manager, pow(M, T), F_all, NULL, NULL, outfile);
     fclose(outfile);
 
