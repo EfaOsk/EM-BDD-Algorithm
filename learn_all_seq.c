@@ -7,6 +7,10 @@
 #include "learn.h"
 #include "helpers.h"
 
+
+
+int **lookup_table_variables;
+
 /**
  * Builds the F_O BDD (Binary Decision Diagram) for a single sequence.
  * 
@@ -34,7 +38,7 @@ DdNode *build_F_single_seq_O(DdManager *manager, int N, int M, int T, DdNode *AS
 
     // Base case: F_O^(L, i) = true for all i
     for (int i = 0; i < N; i++) {
-        FO[T][i] = Cudd_ReadOne(manager);
+        FO[T][i] = Cudd_Not(Cudd_ReadLogicZero(manager));
         Cudd_Ref(FO[T][i]);
     }
 
@@ -85,6 +89,26 @@ DdNode *build_F_single_seq_O(DdManager *manager, int N, int M, int T, DdNode *AS
         FO_ = temp;
     }
 
+
+
+
+    // DdNode **flattenedArray = (DdNode **)malloc((T + 1) * N * sizeof(DdNode *));
+
+    // // Flatten the 2D array into the 1D array.
+    // int count = 0;
+    // for (int t = 0; t <= T; t++) {
+    //     for (int n = 0; n < N; n++) {
+    //         flattenedArray[count] = Cudd_BddToAdd(manager, FO[t][n]);
+    //         count++;
+    //     }
+    // }
+    // char filename[30];
+    // sprintf(filename, "./graphs/graph_.dot");
+    // FILE *outfile; 
+    // outfile = fopen(filename,"w");
+    // Cudd_DumpDot(manager, T*N, flattenedArray, NULL, NULL, outfile);
+    // fclose(outfile);
+
     for (int t = 0; t < T+1; t++) {
         for (int i = 0; i < N; i++) {
             Cudd_RecursiveDeref(manager, FO[t][i]);
@@ -109,20 +133,46 @@ DdNode *build_F_single_seq_O(DdManager *manager, int N, int M, int T, DdNode *AS
  * @param AO      Array of BDDs representing AO.
  */
 void encode_variables(DdManager *manager, int N, int M, int T, DdNode *AS1[N], DdNode *AS[N][T-1][N], DdNode *AO[N][T][M]) {
-    DdNode *AO_enc[N][T][M-1];
-    DdNode *AS1_enc[N - 1];
-    DdNode *AS_enc[N][T - 1][N-1];
+    // DdNode *AO_enc[N][T][M-1];
+    // DdNode *AS1_enc[N - 1];
+    // DdNode *AS_enc[N][T - 1][N-1];
 
+    // Allocate memory for AO_enc
+    DdNode ****AO_enc = (DdNode ****)malloc(N * sizeof(DdNode ***));
+    for (int u = 0; u < N; u++) {
+        AO_enc[u] = (DdNode ***)malloc(T * sizeof(DdNode **));
+        for (int t = 0; t < T; t++) {
+            AO_enc[u][t] = (DdNode **)malloc((M - 1) * sizeof(DdNode *));
+        }
+    }
+
+    // Allocate memory for AS1_enc
+    DdNode **AS1_enc = (DdNode **)malloc((N - 1) * sizeof(DdNode *));
+
+    // Allocate memory for AS_enc
+    DdNode ****AS_enc = (DdNode ****)malloc(N * sizeof(DdNode ***));
+    for (int u = 0; u < N; u++) {
+        AS_enc[u] = (DdNode ***)malloc(T * sizeof(DdNode **));
+        for (int t = 0; t < T - 1; t++) {
+            AS_enc[u][t] = (DdNode **)malloc((N - 1) * sizeof(DdNode *));
+        }
+    }
+
+    int id = 0;
 
     // Encode AO
-    for (int u = 0; u < N; u++) {
-        for (int t = 0; t < T; t++) {
+    for (int t = 0; t < T; t++) {
+        for (int u = 0; u < N; u++) {
             for (int o = 0; o < M; o++) {
                 if ((o == M-1) && (u == N-1)){
 
                 } else {
                     printf("O^%d_%d = %d\n", u, t, o);
-                    AO_enc[u][t][o] = Cudd_bddNewVar(manager);
+                    lookup_table_variables[id][0]= 0;
+                    lookup_table_variables[id][1]= u;
+                    lookup_table_variables[id][2]= t;
+                    lookup_table_variables[id][3]= o;
+                    AO_enc[u][t][o] = Cudd_bddIthVar(manager, id++);
                 }
             }
         }
@@ -136,42 +186,42 @@ void encode_variables(DdManager *manager, int N, int M, int T, DdNode *AS1[N], D
                 } 
                 else if ( (v == N-1) && (o == M-1) )
                 {
-                    AO[v][t][o] = Cudd_ReadLogicZero(manager);
+                    AO[v][t][o] = Cudd_Not(Cudd_ReadLogicZero(manager));
                     Cudd_Ref(AO[v][t][o]);
                     for (int v0 = 0; v0 <= N-2; v0++){
                         for (int o0 = 0; o0 <= M-1; o0++){
-                            DdNode *temp = Cudd_bddOr(manager, AO[v][t][o], Cudd_Not(AO_enc[v0][t][o0]));
+                            DdNode *temp = Cudd_bddAnd(manager, AO[v][t][o], Cudd_Not(AO_enc[v0][t][o0]));
                             Cudd_Ref(temp);
                             Cudd_RecursiveDeref(manager, AO[v][t][o]);
                             AO[v][t][o] = temp;
                         }
                     }
                     for (int o0 = 0; o0 <= M-2; o0++){
-                        DdNode *temp = Cudd_bddOr(manager, AO[v][t][o], Cudd_Not(AO_enc[v][t][o0]));
+                        DdNode *temp = Cudd_bddAnd(manager, AO[v][t][o], Cudd_Not(AO_enc[v][t][o0]));
                         Cudd_Ref(temp);
                         Cudd_RecursiveDeref(manager, AO[v][t][o]);
                         AO[v][t][o] = temp;
                     }
                     
                 } else {
+                    
 
-                    AO[v][t][o] = Cudd_ReadLogicZero(manager);
+                    AO[v][t][o] = Cudd_Not(Cudd_ReadLogicZero(manager));
                     Cudd_Ref(AO[v][t][o]);
                     for (int v0 = 0; v0 <= v-1; v0++){
                         for (int o0 = 0; o0 <= M-1; o0++){
-                            DdNode *temp = Cudd_bddOr(manager, AO[v][t][o], Cudd_Not(AO_enc[v0][t][o0]));
+                            DdNode *temp = Cudd_bddAnd(manager, AO[v][t][o], Cudd_Not(AO_enc[v0][t][o0]));
                             Cudd_Ref(temp);
                             Cudd_RecursiveDeref(manager, AO[v][t][o]);
                             AO[v][t][o] = temp;
                         }
                     }
                     for (int o0 = 0; o0 <= o-1; o0++){
-                        DdNode *temp = Cudd_bddOr(manager, AO[v][t][o], Cudd_Not(AO_enc[v][t][o0]));
+                        DdNode *temp = Cudd_bddAnd(manager, AO[v][t][o], Cudd_Not(AO_enc[v][t][o0]));
                         Cudd_Ref(temp);
                         Cudd_RecursiveDeref(manager, AO[v][t][o]);
                         AO[v][t][o] = temp;
                     }
-                    
                     DdNode *temp = Cudd_bddAnd(manager, AO[v][t][o], AO_enc[v][t][o]);
                     Cudd_Ref(temp);
                     Cudd_RecursiveDeref(manager, AO[v][t][o]);
@@ -182,12 +232,14 @@ void encode_variables(DdManager *manager, int N, int M, int T, DdNode *AS1[N], D
         }
     }
 
-
-
     // Encode AS1
     for (int u = 0; u < N - 1; u++) {
         printf("S_0 = %d\n", u);
-        AS1_enc[u] = Cudd_bddNewVar(manager);
+        lookup_table_variables[id][0]= 1;
+        lookup_table_variables[id][1]= u;
+        lookup_table_variables[id][2]= -1;
+        lookup_table_variables[id][3]= -1;
+        AS1_enc[u] = Cudd_bddIthVar(manager, id++);
     }
 
     for (int u = 0; u < N; u++) {
@@ -196,10 +248,10 @@ void encode_variables(DdManager *manager, int N, int M, int T, DdNode *AS1[N], D
             Cudd_Ref(AS1[0]);
         } 
         else if (u < N-1) {
-            AS1[u] = Cudd_ReadLogicZero(manager);
+            AS1[u] = Cudd_Not(Cudd_ReadLogicZero(manager));
             Cudd_Ref(AS1[u]);
             for (int j = 0; j < u; j++){
-                DdNode *temp = Cudd_bddOr(manager, AS1[u], Cudd_Not(AS1_enc[j]));
+                DdNode *temp = Cudd_bddAnd(manager, AS1[u], Cudd_Not(AS1_enc[j]));
                 Cudd_Ref(temp);
                 Cudd_RecursiveDeref(manager, AS1[u]);
                 AS1[u] = temp;
@@ -210,10 +262,10 @@ void encode_variables(DdManager *manager, int N, int M, int T, DdNode *AS1[N], D
             AS1[u] = temp;
             
         } else {
-            AS1[u] = Cudd_ReadLogicZero(manager);
+            AS1[u] = Cudd_Not(Cudd_ReadLogicZero(manager));
             Cudd_Ref(AS1[u]);
             for (int j = 0; j < u; j++){
-                DdNode *temp = Cudd_bddOr(manager, AS1[u], Cudd_Not(AS1_enc[j]));
+                DdNode *temp = Cudd_bddAnd(manager, AS1[u], Cudd_Not(AS1_enc[j]));
                 Cudd_Ref(temp);
                 Cudd_RecursiveDeref(manager, AS1[u]);
                 AS1[u] = temp;
@@ -224,21 +276,18 @@ void encode_variables(DdManager *manager, int N, int M, int T, DdNode *AS1[N], D
 
 
     // Encode AS
-    // for (int u = 0; u < N; u++) {
-    //     for (int t = 0; t < T-1; t++) {
-    //         for (int v = 0; v < N - 1; v++) {
-    //             AS_enc[u][t][v] = Cudd_bddNewVar(manager);
-    //         }
-    //     }
-    // }
     for (int u = 0; u < N; u++) {
         for (int t = 0; t < T-1; t++) {
             for (int v = 0; v < N; v++) {
                 if ((v == N-1) && (u == N-1)){
 
                 } else {
-                    printf("S^%d_%d = %d\n", u, t, v);
-                    AS_enc[u][t][v] = Cudd_bddNewVar(manager);
+                    printf("S^%d_%d = %d\n", u, t+1, v);
+                    lookup_table_variables[id][0]= 2;
+                    lookup_table_variables[id][1]= u;
+                    lookup_table_variables[id][2]= t;
+                    lookup_table_variables[id][3]= v;
+                    AS_enc[u][t][v] = Cudd_bddIthVar(manager, id++);
                 }
             }
         }
@@ -252,18 +301,18 @@ void encode_variables(DdManager *manager, int N, int M, int T, DdNode *AS1[N], D
                 } 
                 else if ( (v == N-1) && (u == N-1) )
                 {
-                    AS[u][t][v] = Cudd_ReadLogicZero(manager);
+                    AS[u][t][v] = Cudd_Not(Cudd_ReadLogicZero(manager));
                     Cudd_Ref(AS[u][t][v]);
                     for (int v0 = 0; v0 <= v-1; v0++){
                         for (int u0 = 0; u0 <= N-1; u0++){
-                            DdNode *temp = Cudd_bddOr(manager, AS[u][t][v], Cudd_Not(AS_enc[u0][t][v0]));
+                            DdNode *temp = Cudd_bddAnd(manager, AS[u][t][v], Cudd_Not(AS_enc[u0][t][v0]));
                             Cudd_Ref(temp);
                             Cudd_RecursiveDeref(manager, AS[u][t][v]);
                             AS[u][t][v] = temp;
                         }
                     }
                     for (int u0 = 0; u0 < u; u0++){
-                        DdNode *temp = Cudd_bddOr(manager, AS[u][t][v], Cudd_Not(AS_enc[u0][t][v]));
+                        DdNode *temp = Cudd_bddAnd(manager, AS[u][t][v], Cudd_Not(AS_enc[u0][t][v]));
                         Cudd_Ref(temp);
                         Cudd_RecursiveDeref(manager, AS[u][t][v]);
                         AS[u][t][v] = temp;
@@ -271,18 +320,18 @@ void encode_variables(DdManager *manager, int N, int M, int T, DdNode *AS1[N], D
                     
                 } else {
 
-                    AS[u][t][v] = Cudd_ReadLogicZero(manager);
+                    AS[u][t][v] = Cudd_Not(Cudd_ReadLogicZero(manager));
                     Cudd_Ref(AS[u][t][v]);
                     for (int v0 = 0; v0 <= v-1; v0++){
                         for (int u0 = 0; u0 <= N-1; u0++){
-                            DdNode *temp = Cudd_bddOr(manager, AS[u][t][v], Cudd_Not(AS_enc[u0][t][v0]));
+                            DdNode *temp = Cudd_bddAnd(manager, AS[u][t][v], Cudd_Not(AS_enc[u0][t][v0]));
                             Cudd_Ref(temp);
                             Cudd_RecursiveDeref(manager, AS[u][t][v]);
                             AS[u][t][v] = temp;
                         }
                     }
                     for (int u0 = 0; u0 < u; u0++){
-                        DdNode *temp = Cudd_bddOr(manager, AS[u][t][v], Cudd_Not(AS_enc[u0][t][v]));
+                        DdNode *temp = Cudd_bddAnd(manager, AS[u][t][v], Cudd_Not(AS_enc[u0][t][v]));
                         Cudd_Ref(temp);
                         Cudd_RecursiveDeref(manager, AS[u][t][v]);
                         AS[u][t][v] = temp;
@@ -297,6 +346,33 @@ void encode_variables(DdManager *manager, int N, int M, int T, DdNode *AS1[N], D
             }
         }
     }
+
+    // // Free AO_enc
+    // for (int u = 0; u < N; u++) {
+    //     for (int t = 0; t < T; t++) {
+    //         free(AO_enc[u][t]);
+    //     }
+    //     free(AO_enc[u]);
+    // }
+    // free(AO_enc);
+
+    // // Free AS_enc
+    // for (int u = 0; u < N; u++) {
+    //     for (int t = 0; t < T - 1; t++) {
+    //         for (int v = 0; v < N - 1; v++) {
+    //             free(AS_enc[u][t][v]);
+    //         }
+    //         free(AS_enc[u][t]);
+    //     }
+    //     free(AS_enc[u]);
+    // }
+    // free(AS_enc);
+
+    // // Free AS1_enc
+    // for (int u = 0; u < N - 1; u++) {
+    //     free(AS1_enc[u]);
+    // }
+    // free(AS1_enc);
 
 }
 
@@ -425,8 +501,7 @@ DdNode *build_C_A(DdManager *manager, int N, int M, int T, DdNode *AS1[N], DdNod
     }
 
     
-    // DdNode* C_A = Cudd_bddAnd(manager, M_A, L_A);
-    DdNode* C_A = Cudd_Not(Cudd_ReadLogicZero(manager));
+    DdNode* C_A = Cudd_bddAnd(manager, M_A, L_A);
     Cudd_Ref(C_A);
     Cudd_RecursiveDeref(manager, M_A);
     Cudd_RecursiveDeref(manager, L_A);
@@ -435,6 +510,12 @@ DdNode *build_C_A(DdManager *manager, int N, int M, int T, DdNode *AS1[N], DdNod
 
 }
 
+void free_lookup_table_variables( int N, int M, int T) {
+    for (int id = 0; id < (N*T*M-T+N-1+(N*N*(T-1))); id++) {
+        free(lookup_table_variables[id]);
+    }
+    free(lookup_table_variables);
+}
 
 /**
  * Builds the FO nodes for all possible sequences.
@@ -480,8 +561,8 @@ DdNode **build_F_all_seq(DdManager *manager, int N, int M, int T) {
         //     }
         // }
     
-    
-    DdNode* C_A= build_C_A(manager, N, M, T, AS1, AS, AO);
+    // If not encode, set the initial varables
+    // DdNode* C_A= build_C_A(manager, N, M, T, AS1, AS, AO);
     
 
 
@@ -508,8 +589,8 @@ DdNode **build_F_all_seq(DdManager *manager, int N, int M, int T) {
 
 
         DdNode* temp = build_F_single_seq_O(manager, N, M, T, AS1, AS, AO, sequence);
-        F_all[i] =  Cudd_BddToAdd(manager, Cudd_bddAnd(manager, C_A, temp)); 
-        // F_all[i] =  Cudd_BddToAdd(manager, temp); 
+        // F_all[i] =  Cudd_BddToAdd(manager, Cudd_bddAnd(manager, C_A, temp)); 
+        F_all[i] =  Cudd_BddToAdd(manager, temp); 
         Cudd_Ref(F_all[i]);
         Cudd_RecursiveDeref(manager, temp);
 
@@ -533,7 +614,7 @@ DdNode **build_F_all_seq(DdManager *manager, int N, int M, int T) {
         Cudd_RecursiveDeref(manager, AS1[u]);
     }
 
-    Cudd_RecursiveDeref(manager, C_A);
+    // Cudd_RecursiveDeref(manager, C_A);
     return F_all;
 }
 
@@ -568,13 +649,11 @@ double get_prob_AS1_encoded(const HMM *hmm, int i, int b){
         double sum = 0.0;
 
         for (int i0 = i; i0 < hmm->N; i0++){
-            printf("\t\t%f \n", hmm->C[i0]);
             sum += hmm->C[i0];
         }
         double sum_ = 0.0;
 
         for (int i0 = i+1; i0 < hmm->N; i0++){
-            printf("\t\t%f \n", hmm->C[i0]);
             sum_ += hmm->C[i0];
         }
 
@@ -584,7 +663,6 @@ double get_prob_AS1_encoded(const HMM *hmm, int i, int b){
         double sum = 0.0;
 
         for (int i0 = i; i0 < hmm->N; i0++){
-            printf("\t\t%f \n", hmm->C[i0]);
             sum += hmm->C[i0];
         }
 
@@ -593,6 +671,7 @@ double get_prob_AS1_encoded(const HMM *hmm, int i, int b){
     }
 
 }
+
 
 /**
  * @brief Calculate the edge probability in a SBDD reprentation of a HMM.
@@ -743,40 +822,26 @@ double get_prob_AO_encoded(const HMM *hmm, int i, int j, int b){
 
 }
 
-unsigned int countUniqueNodes(DdManager *manager, DdNode *bdds) {
-    DdGen *gen;
-    DdNode *node;
-    int count = 0;
+double get_prob_encoded(const HMM *hmm, DdNode *n, int b) {
+    int id = Cudd_NodeReadIndex(n);
+    int x = lookup_table_variables[id][0];
+    int i = lookup_table_variables[id][1];
+    // int t = lookup_table_variables[id][2];
+    int j = lookup_table_variables[id][3];
 
-    // Create a set to store unique node addresses
-    int initialNodeCount = Cudd_ReadNodeCount(manager);
-    int maxNodeCount = initialNodeCount * 2; // To avoid resizing
-    void **nodeSet = (void **)malloc(maxNodeCount * sizeof(void *));
-    assert(nodeSet != NULL);
-
-    // for (int j = 0; j<n; j++){
-        // Iterate over nodes and count unique nodes
-        Cudd_ForeachNode(manager, bdds, gen, node) {
-            // Check if the node address is already in the set
-            int i;
-            for (i = 0; i < count; i++) {
-                if (node == nodeSet[i])
-                    break;
-            }
-
-            // If the node is not in the set, add it and increment count
-            if (i == count) {
-                nodeSet[count] = node;
-                count++;
-            }
-        }
-    // }
-
-    // Free the memory used by the node set
-    free(nodeSet);
-
-    return count;
+    if (x == 0) {
+        return get_prob_AO_encoded(hmm, i, j, b);
+    } else if (x == 1) {
+        return get_prob_AS1_encoded(hmm, i, b);
+    } else if (x == 2) {
+        return get_prob_AS_encoded(hmm, i, j, b);
+    } else {
+        // error
+    }
 }
+
+
+double** lookupTableBackward;
 
 /**
  * @brief Backward prosedure where
@@ -790,48 +855,139 @@ unsigned int countUniqueNodes(DdManager *manager, DdNode *bdds) {
  * @param manager 
  * @param bdd 
  * @param M 
- * @return struct DoubleArray 
+ * @return double
  */
-double* Backward(DdManager* manager, DdNode* bdd) {
-    int numVars = Cudd_ReadSize(manager); // Get the number of variables in the BDD
-    int numNodes = Cudd_ReadNodeCount(manager); // Get the number of nodes in the BDD
+double Backward(DdManager* manager, DdNode* bdd, const HMM *hmm, int b) {
 
-    // Initialize beta (B) arrays
-    double* B_1 = (double*)malloc(numNodes * sizeof(double));
-    double* B_0 = (double*)malloc(numNodes * sizeof(double));
+    if (bdd == Cudd_ReadLogicZero(manager)) {
+        // Terminal node: 0
+        if (b==0){
+            return 1.0;
+        } else {
+            return 0.0;
+        }
+    }
+    if (bdd == Cudd_Not(Cudd_ReadLogicZero(manager))) {
+        // Terminal node: 1
+        if (b==0){
+            return 0.0;
+        } else {
+            return 1.0;
+        }
+    }
 
-    printf("%d", countUniqueNodes(manager, bdd));
-    // if (B_1 == NULL || B_0 == NULL) {
-    //     // Handle memory allocation error
-    //     fprintf(stderr, "Memory allocation error\n");
-    //     exit(1);
-    // }
+    int id = Cudd_NodeReadIndex(bdd);
 
-    // // Initialize the beta values for the final time step
-    // for (int i = 0; i < numVars; i++) {
-    //     B_1[i] = 1.0;
-    //     B_0[i] = 1.0;
-    // }
+    // Check if the probability is already computed for this node
+    if (lookupTableBackward[id][b] >= 0.0) {
+        return lookupTableBackward[id][b];
+    }
 
-    // // Now, you can implement the backward pass loop over the BDD nodes
-    // // Note: You need to adapt this part based on your HMM model and BDD structure
-    // // In this loop, you'll update the B_1 and B_0 arrays based on your HMM model and BDD
 
-    // // Example loop structure for iterating through BDD nodes (modify as needed):
-    // for (int level = numVars - 1; level >= 0; level--) {
-    //     DdNode* levelNodes = Cudd_bddAndAbstract(manager, bdd, Cudd_bddIthVar(manager, level), Cudd_bddIthVar(manager, level));
-    //     // You will need to continue the logic here, considering your HMM model and BDD structure.
-    //     // Update B_1 and B_0 arrays based on the nodes in this level and their children.
-    //     // Example:
-    //     // B_1[level] = 0.5 * B_1[CUDD_TRUEINDEX] + 0.5 * B_1[CUDD_FALSEINDEX];
-    //     // B_0[level] = 0.5 * B_0[CUDD_TRUEINDEX] + 0.5 * B_0[CUDD_FALSEINDEX];
 
-    //     Cudd_RecursiveDeref(manager, levelNodes); // Free intermediate BDD nodes
-    // }
+    // Compute probabilities for the true and false children
+    DdNode* high = Cudd_E(bdd);
+    DdNode* low = Cudd_T(bdd);
 
-    return B_1;
+    // Calculate the probability for the current node
+    double prob_high, prob_low, prob;
+    prob_high =  get_prob_encoded(hmm, bdd, 1)*Backward(manager, high, hmm, b);
+    prob_low = get_prob_encoded(hmm, bdd, 0)*Backward(manager, low, hmm, b);
+    prob = prob_low + prob_high;
+    lookupTableBackward[id][b] = prob; // Store in the lookup table
+
+
+    return prob;
 }
 
+// double** lookupTableForward;
+
+NodeWithForward *nodeData;
+
+int findNodeIndex(DdNode *searchNode, int numNodes) {
+    for (int i = 0; i < numNodes; i++) {
+        if (nodeData[i].node == searchNode) {
+            // Found the node in the list, return its index
+            return i;
+        }
+    }
+    // Node not found in the list
+    return -1; // You can choose a suitable sentinel value for "not found"
+}
+
+/**
+ * Calculate forward values for nodes in a Binary Decision Diagram (BDD).
+ *
+ * @param manager   The CUDD manager for the BDD operations.
+ * @param F_all     An array of BDD nodes representing the roots of the BDDs.
+ * @param hmm       A pointer to a Hidden Markov Model (HMM) or a similar probabilistic model.
+ * @param num_roots The number of BDD roots in the 'F_all' array.
+ */
+void CalculateForward(DdManager* manager, DdNode** F_all, const HMM *hmm, int num_roots) {
+    int numNodes = Cudd_ReadNodeCount(manager)+num_roots+2;
+    nodeData = (NodeWithForward *)malloc(numNodes* sizeof(NodeWithForward));
+
+    if (nodeData == NULL) {
+        // Handle memory allocation failure
+        perror("Memory allocation failed");
+        Cudd_Quit(manager);
+    }
+
+    DdNode *node;
+    DdGen *gen;
+    int index = 0;
+
+    int r= 1;
+    for (int r = 0; r<num_roots; r++){
+        Cudd_ForeachNode(manager, F_all[r], gen, node) {
+            int i;
+            for (i = 0; i < index; i++) {
+                if (node == nodeData[i].node)
+                    break;
+            }
+            // If the node is not in the set, add it
+            if (i == index) {
+                nodeData[index].node = node;
+                nodeData[index].forward0 = 0.0; 
+                nodeData[index].forward1 = 0.0; 
+                // printf("\t%d", index);
+                index++;
+            }
+        }
+        nodeData[index].node = F_all[r];
+        nodeData[index].forward1 = 1; //1/ Backward(manager, F_all[r], hmm, 0);
+        nodeData[index].forward0 = 0;
+        index++;
+
+    }
+    
+    nodeData[index].node = Cudd_Not(Cudd_ReadLogicZero(manager));
+    nodeData[index].forward0 = 0.0;
+    nodeData[index].forward1 = 0.0;
+    index++;
+    nodeData[index].node = Cudd_ReadLogicZero(manager);
+    nodeData[index].forward0 = 0.0;
+    nodeData[index].forward1 = 0.0;
+    index++;
+
+    
+    for (int i = 0; i < index; i++){
+        node = nodeData[i].node;
+        // cheack for terminal nodes
+        if ((node !=  Cudd_Not(Cudd_ReadLogicZero(manager))) && (node !=  Cudd_ReadLogicZero(manager))){
+            int id_high = findNodeIndex(Cudd_E(node), index+1);
+            int id_low = findNodeIndex(Cudd_T(node), index+1);
+            nodeData[id_low].forward0 += nodeData[i].forward0*get_prob_encoded(hmm, node, 0);
+            nodeData[id_high].forward0 += nodeData[i].forward0*get_prob_encoded(hmm, node, 1);
+            nodeData[id_low].forward1 += nodeData[i].forward1*get_prob_encoded(hmm, node, 0);
+            nodeData[id_high].forward1 += nodeData[i].forward1*get_prob_encoded(hmm, node, 1);
+        }
+    }
+
+    for (int i = 0; i < index; i++){
+        printf("\t%f\t\t%f\n", nodeData[i].forward0, nodeData[i].forward1);
+    }
+}
 
 /**
  * @brief This function builds an HMM that "best" fits a given observation sequence O with the given number of states and observations.
@@ -871,11 +1027,13 @@ HMM* learn(HMM *hypothesis_hmm, int T, int O[T])
     */
 
     // TODO make the  HMM N and M an input ?
-    // int N = hypothesis_hmm->N;
-    // int M = hypothesis_hmm->M;
+    int N = hypothesis_hmm->N;
+    int M = hypothesis_hmm->M;
 
-    int N = 4;
-    int M = 3;
+    lookup_table_variables = (int **)malloc((N*T*M-T+N-1+(N*N*(T-1))) * sizeof(int *));
+    for (int id = 0; id <(N*T*M-T+N-1+(N*N*(T-1))); id++) {
+        (lookup_table_variables)[id] = (int *)malloc(4 * sizeof(int));
+    }
 
     // Step 1 build (S)BDD
     DdManager *manager = Cudd_Init(0,0,CUDD_UNIQUE_SLOTS,CUDD_CACHE_SLOTS, 0);  
@@ -923,11 +1081,28 @@ HMM* learn(HMM *hypothesis_hmm, int T, int O[T])
     // Step 3: E-step
     
     // Step 3 (a) : Backward
-    
-    // Backward(manager, F_all[0]);    
+        
+    // Initialize the lookup table with -1.0 (indicating no value computed)
+
+    // lookupTableBackward = (double **)malloc(Cudd_ReadSize(manager) * sizeof(double *));
+    // for (int id = 0; id <Cudd_ReadSize(manager); id++) {
+    //     (lookupTableBackward)[id] = (double *)malloc(2 * sizeof(double));
+    // }
+
+
+    // for (int i = 0; i < Cudd_ReadSize(manager); i++) {
+    //     lookupTableBackward[i][0] = -1.0;
+    //     lookupTableBackward[i][1] = -1.0;
+    // }
+    // double backward_probs = Backward(manager, F_all[0], hypothesis_hmm, 0);
+    // printf("Backward Probabilities: %f\n", backward_probs);
+    // backward_probs = Backward(manager, F_all[0], hypothesis_hmm, 1);
+    // printf("Backward Probabilities: %f\n", backward_probs);
 
     // Step 3 (b) : Forward
     
+    // CalculateForward(manager, F_all, hypothesis_hmm, (int) pow(M, T));
+
     // Step 3 (c) : Conditional Expectations
 
 
@@ -946,10 +1121,10 @@ HMM* learn(HMM *hypothesis_hmm, int T, int O[T])
 
 
     // ToDo: remove (For Debuging):
-    // printf("N : %d | ", N );
-    // printf("M : %d | ", M );
-    // printf("T : %d | ", T );
-    // printf("Encode: TRUE | ");
+    printf("N : %d | ", N );
+    printf("M : %d | ", M );
+    printf("T : %d | ", T );
+    printf("Encode: TRUE | ");
     printf("DdManager vars: %d | ", Cudd_ReadSize(manager) ); /*Returns the number of BDD variables in existence*/
     printf("DdManager nodes: %ld | ", Cudd_ReadNodeCount(manager) ); // countUniqueNodes(manager, pow(M,T), F_all) );/*Reports the number of live nodes in BDDs and ADDs*/
     printf("DdManager reorderings: %d | ", Cudd_ReadReorderings(manager) ); /*Returns the number of times reordering has occurred*/
@@ -961,6 +1136,7 @@ HMM* learn(HMM *hypothesis_hmm, int T, int O[T])
 
     FILE *outfile; // output file pointer for .dot file
     outfile = fopen(filename,"w");
+    printf("%f\n", pow(M, T));
     Cudd_DumpDot(manager, pow(M, T), F_all, NULL, NULL, outfile);
     fclose(outfile);
 

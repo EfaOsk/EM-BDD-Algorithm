@@ -41,7 +41,7 @@ int main(int argc, char *argv[]) {
     //     HMM_destroy(example_models[i] );
 
     // }
-    int observations[] = {0, 1, 2};
+    int observations[] = {0};
 
     // Calculate the probability of the sequence
     // double sequence_probability = probability_single_sequence(example_models[0], observations, 3);
@@ -50,6 +50,6 @@ int main(int argc, char *argv[]) {
     // printf("Probability of observing the sequence: %f\n", sequence_probability);
 
 
-    HMM *learned_model = learn(example_models[1], 1, NULL); 
+    HMM *learned_model = learn(example_models[10], 1, observations); 
     return 0;
 }
