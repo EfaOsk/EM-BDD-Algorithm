@@ -205,8 +205,7 @@ HMM** initialize_example_models() {
         models[8]->C[i] = C8[i];
     }
 
-    int N9 = 4;
-    int M9 = 5;
+
     double A9[4][4] = {{0.4, 0.3, 0.2, 0.1}, {0.2, 0.4, 0.2, 0.2}, {0.1, 0.2, 0.5, 0.2}, {0.3, 0.1, 0.3, 0.3}};
     double B9[4][5] = {{0.2, 0.3, 0.2, 0.2, 0.1}, {0.3, 0.1, 0.3, 0.2, 0.1}, {0.1, 0.3, 0.1, 0.2, 0.3}, {0.2, 0.2, 0.2, 0.3, 0.1}};
     double C9[4] = {0.3, 0.2, 0.2, 0.3};
@@ -225,6 +224,26 @@ HMM** initialize_example_models() {
 
     for (int i = 0; i < 4; i++) {
         models[9]->C[i] = C9[i];
+    }
+
+    double A10[2][2] = {{0.5, 0.5}, {0.5, 0.5}};
+    double B10[2][2] = {{0.5, 0.5}, {0.5, 0.5}};
+    double C10[2] = {1, 0};
+    models[10] = HMM_create(2, 2, "Example Model 10");
+    for (int i = 0; i < 2; i++) {
+        for (int j = 0; j < 2; j++) {
+            models[10]->A[i][j] = A10[i][j];
+        }
+    }
+
+    for (int i = 0; i < 2; i++) {
+        for (int j = 0; j < 2; j++) {
+            models[10]->B[i][j] = B10[i][j];
+        }
+    }
+
+    for (int i = 0; i < 2; i++) {
+        models[10]->C[i] = C10[i];
     }
 
 

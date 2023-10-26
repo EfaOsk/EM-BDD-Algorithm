@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include "HMM.h"
 
-#define NUM_MODELS 10 // Number of HMM models to create
+#define NUM_MODELS 11 // Number of HMM models to create
 
 extern HMM* example_models[NUM_MODELS];
 
