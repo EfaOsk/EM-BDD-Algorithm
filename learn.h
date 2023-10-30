@@ -8,11 +8,17 @@
 
 HMM* learn(HMM *orignal_hmm, int T, int O[T]);
 
-typedef struct {
-    DdNode *node;
-    double forward0;
-    double forward1;
-} NodeWithForward;
+typedef struct NodeDataNode {
+    DdNode* node;
+    double forward[2];  // Forward probabilities for binary values 0 and 1
+    double backward[2]; // Backward probabilities for binary values 0 and 1
+    struct NodeDataNode* next;
+} NodeDataNode;
+
+typedef struct NodeDataList {
+    NodeDataNode* head;
+    NodeDataNode* tail;
+} NodeDataList;
 
 
 #endif
