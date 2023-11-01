@@ -230,9 +230,9 @@ void encode_variables(DdManager *manager, int N, int M, int T, DdNode *AS1[N], D
     for (int u = 0; u < N - 1; u++) {
         printf("S_0 = %d\n", u);
         lookup_table_variables[id][0]= 1;
-        lookup_table_variables[id][1]= u;
+        lookup_table_variables[id][1]= -1;
         lookup_table_variables[id][2]= -1;
-        lookup_table_variables[id][3]= -1;
+        lookup_table_variables[id][3]= u;
         AS1_enc[u] = Cudd_bddIthVar(manager, id++);
     }
 
@@ -809,7 +809,7 @@ double get_prob_encoded(const HMM *hmm, DdNode *n, int b) {
     if (x == 0) {
         return get_prob_AO_encoded(hmm, i, j, b);
     } else if (x == 1) {
-        return get_prob_AS1_encoded(hmm, i, b);
+        return get_prob_AS1_encoded(hmm, j, b);
     } else if (x == 2) {
         return get_prob_AS_encoded(hmm, i, j, b);
     } else {
@@ -1053,6 +1053,166 @@ void FreeNodeData(int numVars) {
     free(nodeData);
 }
 
+double get_theta(const HMM *hmm, int x, int i, int j) { 
+    if (x == 0) {
+        return hmm->B[i][j];
+    } else if (x == 1) {
+        return hmm->C[j];
+    } else if (x == 2) {
+        return hmm->A[i][j];
+    } else {
+        perror("Error: Invalid value of x");
+        return -1.0; 
+    }
+}
+
+
+double get_sigma(const HMM *hmm, int x, int i, int j) { 
+
+    double sum = 0.0;
+    if (x == 0) {
+        for (int i0 = i+1; i0 <= hmm->N - 1; i0++){
+            for (int j0 = 0; j0<= hmm->M -1; j0++){
+                sum += hmm->B[i0][j0];
+            }
+        }
+        for (int j0 = j; j0<= hmm->M -1; j0++){
+            sum += hmm->B[i][j0];
+        }
+        return sum;
+    } else if (x == 1) {
+        for (int j0 = j; j0 < hmm->N; j0++){
+            sum += hmm->C[j0];
+        }
+        return sum;
+    } else if (x == 2) {
+        for (int i0 = i+1; i0 <= hmm->N - 1; i0++){
+            for (int j0 = 0; j0<= hmm->N -1; j0++){
+                sum += hmm->A[i0][j0];
+            }
+        }
+        for (int j0 = j; j0<= hmm->N -1; j0++){
+            sum += hmm->A[i][j0];
+        }
+        return sum;
+    } else {
+        perror("Error: Invalid value of x");
+        return -1.0; 
+    }
+}
+
+
+void computeConditionalExpectations(DdManager *manager, DdNode** F_seq, const HMM *hmm, int T) {
+
+    int N = hmm->N;
+    int NX = (hmm->N > hmm->M) ? hmm->N : hmm->M;
+    int numVars = Cudd_ReadSize(manager);
+    // int T = 3;
+    double e0, e1, temp;
+    double ***eta = (double***)malloc(N * sizeof(double**));
+    double ***etaX = (double***)malloc(N * sizeof(double**));
+    double ***gamma = (double***)malloc(N * sizeof(double**));
+    double *D = malloc(numVars * sizeof(double*));     
+    // Allocate and Initialize eta, etaX, and gamma
+    for (int i = 0; i < N; i++) {
+        eta[i] = (double**)malloc(T * sizeof(double*));
+        etaX[i] = (double**)malloc(T * sizeof(double*));
+        gamma[i] = (double**)malloc(T * sizeof(double*));
+        for (int t = 0; t < T; t++) {
+            eta[i][t] = (double*)malloc(NX * sizeof(double));
+            etaX[i][t] = (double*)malloc(NX * sizeof(double));
+            gamma[i][t] = (double*)malloc(NX * sizeof(double));
+            for (int j = 0; j < NX; j++) {
+                eta[i][t][j] = 0;
+                etaX[i][t][j] = 0;
+                gamma[i][t][j] = 0;
+            }
+        }
+    }
+    for (int i = 0; i < numVars; i++) {
+        D[i] = 0;
+    }
+
+    for (int level = 0; level <= numVars; level++) {
+        NodeDataNode* node = nodeData[level]->head;
+        // int x = lookup_table_variables[level][0];
+        int i = lookup_table_variables[level][1];
+        int t = lookup_table_variables[level][2];
+        int j = lookup_table_variables[level][3];
+        while (node != NULL) {
+            DdNode *lowChild = Cudd_E(node->node);
+            DdNode *highChild = Cudd_T(node->node);
+                
+            int lowLevel = Cudd_ReadPerm(manager, Cudd_NodeReadIndex(lowChild));
+            if (lowLevel > numVars) {
+                lowLevel = numVars;
+            }
+            int highLevel = Cudd_ReadPerm(manager, Cudd_NodeReadIndex(highChild));
+            if (highLevel > numVars) {
+                highLevel = numVars;
+            }
+            NodeDataNode *lowChildData = FindTargetNodeAtLevel(manager, lowLevel, Cudd_Regular(lowChild));
+            NodeDataNode *highChildData = FindTargetNodeAtLevel(manager, highLevel, highChild);
+            int PrLow = get_prob_encoded(hmm, node->node, 0);
+            int PrHigh = get_prob_encoded(hmm, node->node, 1);
+            // todo cheack for negative edges
+
+            e1 = node->forward[0]*PrHigh*highChildData->backward[0] + node->forward[1]*PrHigh*highChildData->backward[1];
+            
+            if (!Cudd_IsComplement(lowChild)) {
+                e0 = node->forward[0]*PrLow*lowChildData->backward[0] + node->forward[1]*PrLow*lowChildData->backward[1];
+            } else {
+                e0 = node->forward[0]*PrLow*lowChildData->backward[0] + node->forward[1]*PrLow*lowChildData->backward[1];
+            }
+            
+            etaX[i][t][j]+= e1;
+            gamma[i][t][j+1]+=e0;
+            gamma[i][t][j]-= e0 + e1;
+
+            // D[B] is assumed to be some kind of storage or data structure
+            D[level+1] += e0 + e1;
+            D[highLevel] -= e1;
+            D[lowLevel] -= e0;
+
+            // next node
+            node = node->next;
+        }
+    }
+
+    temp = 0;
+    for (int level = 1; level <= numVars; level++) {
+        int x = lookup_table_variables[level][0];
+        int i = lookup_table_variables[level][1];
+        int t = lookup_table_variables[level][2];
+        int j = lookup_table_variables[level][3];
+        temp += D[level];
+        if (j == 0) {
+            gamma[i][t][0] = temp;
+        }
+    }
+
+    for (int x = 0; x < 3; x++) { 
+        int tempN = N;
+        if (x == 1) { tempN == 1; }
+        for (int i = 0; i < tempN; i++) {
+            for (int t = 0; t < T; t++) {
+                temp = 0;
+                if (x > 0) { NX = hmm->N; } 
+                else { NX = hmm->M; }
+                for (int j = 0; j < NX; j++) {
+                    temp += gamma[i][t][j] / get_sigma(hmm, x, i, j); // TODO: / sigma[mu(i)][j];
+                    etaX[i][t][j] += temp * get_theta(hmm, x, i, j);  // TODO: * thetda[mu(i)][j];
+                }
+            }
+        }
+    }
+
+    // Clean up
+    free(eta);
+    free(gamma);
+}
+
+
 /**
  * @brief This function builds an HMM that "best" fits a given observation sequence O with the given number of states and observations.
  * 
@@ -1136,6 +1296,8 @@ HMM* learn(HMM *hypothesis_hmm, int T, int O[T])
     // }
 
     // Step 3 (c) : Conditional Expectations
+
+    computeConditionalExpectations(manager, F_obs, hypothesis_hmm, T);
 
 
     // Step 4: M-step
