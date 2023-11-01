@@ -230,8 +230,8 @@ void encode_variables(DdManager *manager, int N, int M, int T, DdNode *AS1[N], D
     for (int u = 0; u < N - 1; u++) {
         printf("S_0 = %d\n", u);
         lookup_table_variables[id][0]= 1;
-        lookup_table_variables[id][1]= -1;
-        lookup_table_variables[id][2]= -1;
+        lookup_table_variables[id][1]= 0;
+        lookup_table_variables[id][2]= 0;
         lookup_table_variables[id][3]= u;
         AS1_enc[u] = Cudd_bddIthVar(manager, id++);
     }
@@ -1102,30 +1102,55 @@ double get_sigma(const HMM *hmm, int x, int i, int j) {
 }
 
 
-void computeConditionalExpectations(DdManager *manager, DdNode** F_seq, const HMM *hmm, int T) {
+void computeConditionalExpectations(DdManager *manager, DdNode** F_seq, const HMM *hmm, int T, double *****etaX) {
 
     int N = hmm->N;
     int NX = (hmm->N > hmm->M) ? hmm->N : hmm->M;
     int numVars = Cudd_ReadSize(manager);
     // int T = 3;
     double e0, e1, temp;
-    double ***eta = (double***)malloc(N * sizeof(double**));
-    double ***etaX = (double***)malloc(N * sizeof(double**));
-    double ***gamma = (double***)malloc(N * sizeof(double**));
-    double *D = malloc(numVars * sizeof(double*));     
-    // Allocate and Initialize eta, etaX, and gamma
-    for (int i = 0; i < N; i++) {
-        eta[i] = (double**)malloc(T * sizeof(double*));
-        etaX[i] = (double**)malloc(T * sizeof(double*));
-        gamma[i] = (double**)malloc(T * sizeof(double*));
-        for (int t = 0; t < T; t++) {
-            eta[i][t] = (double*)malloc(NX * sizeof(double));
-            etaX[i][t] = (double*)malloc(NX * sizeof(double));
-            gamma[i][t] = (double*)malloc(NX * sizeof(double));
-            for (int j = 0; j < NX; j++) {
-                eta[i][t][j] = 0;
-                etaX[i][t][j] = 0;
-                gamma[i][t][j] = 0;
+    // double ***eta = (double***)malloc(N * sizeof(double**));
+    *etaX = (double****)malloc(3 * sizeof(double***)); // x is the leading dimension
+
+    // Check memory allocation for etaX
+    if (!etaX) { perror("Failed to allocate memory for etaX"); exit(EXIT_FAILURE); }
+
+    double ****gamma = (double****)malloc(3 * sizeof(double***)); // Making gamma 3D with x as leading dimension
+
+    // Check memory allocation for gamma
+    if (!gamma) { perror("Failed to allocate memory for gamma"); exit(EXIT_FAILURE); }
+
+    double *D = malloc(numVars * sizeof(double));
+
+    // Check memory allocation for D
+    if (!D) { perror("Failed to allocate memory for D"); exit(EXIT_FAILURE); }
+
+    for (int x = 0; x < 3; x++) {
+        (*etaX)[x] = (double***)malloc(N * sizeof(double**));
+        if (!(*etaX)[x]) { perror("Failed to allocate memory for etaX[x]"); exit(EXIT_FAILURE); }
+
+        gamma[x] = (double***)malloc(N * sizeof(double**));
+        if (!gamma[x]) { perror("Failed to allocate memory for gamma[x]"); exit(EXIT_FAILURE); }
+
+        for (int i = 0; i < N; i++) {
+            (*etaX)[x][i] = (double**)malloc(T * sizeof(double*));
+            if (!(*etaX)[x][i]) { perror("Failed to allocate memory for etaX[x][i]"); exit(EXIT_FAILURE); }
+
+            gamma[x][i] = (double**)malloc(T * sizeof(double*));
+            if (!gamma[x][i]) { perror("Failed to allocate memory for gamma[x][i]"); exit(EXIT_FAILURE); }
+
+            for (int t = 0; t < T; t++) {
+                (*etaX)[x][i][t] = (double*)malloc(NX * sizeof(double));
+                if (!(*etaX)[x][i][t]) { perror("Failed to allocate memory for etaX[x][i][t]"); exit(EXIT_FAILURE); }
+
+                gamma[x][i][t] = (double*)malloc(NX * sizeof(double));
+                if (!gamma[x][i][t]) { perror("Failed to allocate memory for etaX[x][i][t]"); exit(EXIT_FAILURE); }
+                
+
+                for (int j = 0; j < NX; j++) {
+                    (*etaX)[x][i][t][j] = 0.0;
+                    gamma[x][i][t][j] = 0.0;
+                }
             }
         }
     }
@@ -1133,9 +1158,9 @@ void computeConditionalExpectations(DdManager *manager, DdNode** F_seq, const HM
         D[i] = 0;
     }
 
-    for (int level = 0; level <= numVars; level++) {
+    for (int level = 0; level < numVars; level++) {
         NodeDataNode* node = nodeData[level]->head;
-        // int x = lookup_table_variables[level][0];
+        int x = lookup_table_variables[level][0];
         int i = lookup_table_variables[level][1];
         int t = lookup_table_variables[level][2];
         int j = lookup_table_variables[level][3];
@@ -1143,7 +1168,7 @@ void computeConditionalExpectations(DdManager *manager, DdNode** F_seq, const HM
             DdNode *lowChild = Cudd_E(node->node);
             DdNode *highChild = Cudd_T(node->node);
                 
-            int lowLevel = Cudd_ReadPerm(manager, Cudd_NodeReadIndex(lowChild));
+            int lowLevel = Cudd_ReadPerm(manager, Cudd_NodeReadIndex(Cudd_Regular(lowChild)));
             if (lowLevel > numVars) {
                 lowLevel = numVars;
             }
@@ -1153,9 +1178,8 @@ void computeConditionalExpectations(DdManager *manager, DdNode** F_seq, const HM
             }
             NodeDataNode *lowChildData = FindTargetNodeAtLevel(manager, lowLevel, Cudd_Regular(lowChild));
             NodeDataNode *highChildData = FindTargetNodeAtLevel(manager, highLevel, highChild);
-            int PrLow = get_prob_encoded(hmm, node->node, 0);
-            int PrHigh = get_prob_encoded(hmm, node->node, 1);
-            // todo cheack for negative edges
+            double PrLow = get_prob_encoded(hmm, node->node, 0);
+            double PrHigh = get_prob_encoded(hmm, node->node, 1);
 
             e1 = node->forward[0]*PrHigh*highChildData->backward[0] + node->forward[1]*PrHigh*highChildData->backward[1];
             
@@ -1164,10 +1188,9 @@ void computeConditionalExpectations(DdManager *manager, DdNode** F_seq, const HM
             } else {
                 e0 = node->forward[0]*PrLow*lowChildData->backward[0] + node->forward[1]*PrLow*lowChildData->backward[1];
             }
-            
-            etaX[i][t][j]+= e1;
-            gamma[i][t][j+1]+=e0;
-            gamma[i][t][j]-= e0 + e1;
+            (*etaX)[x][i][t][j] += e1;
+            gamma[x][i][t][j+1]+=e0;
+            gamma[x][i][t][j]-= e0 + e1;
 
             // D[B] is assumed to be some kind of storage or data structure
             D[level+1] += e0 + e1;
@@ -1187,28 +1210,28 @@ void computeConditionalExpectations(DdManager *manager, DdNode** F_seq, const HM
         int j = lookup_table_variables[level][3];
         temp += D[level];
         if (j == 0) {
-            gamma[i][t][0] = temp;
+            gamma[x][i][t][0] = temp;
         }
     }
 
     for (int x = 0; x < 3; x++) { 
         int tempN = N;
-        if (x == 1) { tempN == 1; }
+        if (x == 1) { tempN = 1; }
         for (int i = 0; i < tempN; i++) {
             for (int t = 0; t < T; t++) {
                 temp = 0;
                 if (x > 0) { NX = hmm->N; } 
                 else { NX = hmm->M; }
                 for (int j = 0; j < NX; j++) {
-                    temp += gamma[i][t][j] / get_sigma(hmm, x, i, j); // TODO: / sigma[mu(i)][j];
-                    etaX[i][t][j] += temp * get_theta(hmm, x, i, j);  // TODO: * thetda[mu(i)][j];
+                    temp += gamma[x][i][t][j] / get_sigma(hmm, x, i, j); // TODO: / sigma[mu(i)][j];
+                    (*etaX)[x][i][t][j] += temp * get_theta(hmm, x, i, j);  // TODO: * thetda[mu(i)][j];
                 }
             }
         }
     }
 
     // Clean up
-    free(eta);
+    // free(eta);
     free(gamma);
 }
 
@@ -1296,9 +1319,24 @@ HMM* learn(HMM *hypothesis_hmm, int T, int O[T])
     // }
 
     // Step 3 (c) : Conditional Expectations
-
-    computeConditionalExpectations(manager, F_obs, hypothesis_hmm, T);
-
+    double ****eta;
+    computeConditionalExpectations(manager, F_obs, hypothesis_hmm, T, &eta);
+    // TODO remove (for texting, prints the conditional expectaion)
+    int NX = 3;
+    for (int x = 0; x < 3; x++) { 
+        int tempN = N;
+        if (x == 1) { tempN = 1; }
+        for (int i = 0; i < tempN; i++) {
+            for (int t = 0; t < T; t++) {
+                if (x > 0) { NX = N; } 
+                else { NX = M; }
+                for (int j = 0; j < NX; j++) {
+                    // why can I not acces eta here?
+                    printf("\t%f\n", eta[x][i][t][j]);
+                }
+            }
+        }
+    }
 
     // Step 4: M-step
     // Step 4 (a) : update M
