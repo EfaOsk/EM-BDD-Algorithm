@@ -18,6 +18,7 @@ void HMM_destroy(HMM *hmm);
 void HMM_print(const HMM *hmm);
 void validate_hmm(const HMM *hmm);
 double probability_single_sequence(const HMM *hmm, const int *observations, int T);
+double log_likelihood_forward(const HMM *hmm, const int *observations, int T);
 void draw_hmm(const HMM *hmm, const char *dotFileName);
 
 #endif // HMM_H

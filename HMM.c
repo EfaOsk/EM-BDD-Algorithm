@@ -256,3 +256,62 @@ double probability_single_sequence(const HMM *hmm, const int *observations, int 
 
     return p;
 }
+
+
+double log_likelihood_forward(const HMM *hmm, const int *observations, int T) {
+    int N = hmm->N;
+
+    // Allocate memory for the forward probabilities matrix and scaling factors
+    double **alpha = (double **)malloc(T * sizeof(double *));
+    double *scale_factors = (double *)malloc(T * sizeof(double));
+    for (int t = 0; t < T; t++) {
+        alpha[t] = (double *)malloc(N * sizeof(double));
+    }
+
+    // Initialize the first row of alpha with initial probabilities and observations
+    double scale = 0.0;
+    for (int i = 0; i < N; i++) {
+        alpha[0][i] = hmm->C[i] * hmm->B[i][observations[0]];
+        scale += alpha[0][i];
+    }
+    scale_factors[0] = scale;
+
+    // Scale the alpha values at time t=0
+    for (int i = 0; i < N; i++) {
+        alpha[0][i] /= scale;
+    }
+
+    // Calculate the scaled forward probabilities for the rest of the sequence
+    for (int t = 1; t < T; t++) {
+        scale = 0.0;
+        for (int j = 0; j < N; j++) {
+            alpha[t][j] = 0.0;
+            for (int i = 0; i < N; i++) {
+                alpha[t][j] += alpha[t - 1][i] * hmm->A[i][j];
+            }
+            alpha[t][j] *= hmm->B[j][observations[t]];
+            scale += alpha[t][j];
+        }
+        scale_factors[t] = scale;
+
+        // Scale the alpha values at time t
+        for (int j = 0; j < N; j++) {
+            alpha[t][j] /= scale;
+        }
+    }
+
+    // Calculate the log-likelihood
+    double log_likelihood = 0.0;
+    for (int t = 0; t < T; t++) {
+        log_likelihood += log(scale_factors[t]);
+    }
+
+    // Free allocated memory
+    for (int t = 0; t < T; t++) {
+        free(alpha[t]);
+    }
+    free(alpha);
+    free(scale_factors);
+
+    return log_likelihood;
+}
