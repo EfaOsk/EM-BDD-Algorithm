@@ -161,7 +161,7 @@ void encode_variables(DdManager *manager, int N, int M, int T, DdNode *AS1[N], D
                 if ((o == M-1) && (u == N-1)){
 
                 } else {
-                    printf("O^%d_%d = %d\n", u, t, o);
+                    // printf("O^%d_%d = %d\n", u, t, o);
                     lookup_table_variables[id][0]= 0;
                     lookup_table_variables[id][1]= u;
                     lookup_table_variables[id][2]= t;
@@ -228,7 +228,7 @@ void encode_variables(DdManager *manager, int N, int M, int T, DdNode *AS1[N], D
 
     // Encode AS1
     for (int u = 0; u < N - 1; u++) {
-        printf("S_0 = %d\n", u);
+        // printf("S_0 = %d\n", u);
         lookup_table_variables[id][0]= 1;
         lookup_table_variables[id][1]= 0;
         lookup_table_variables[id][2]= 0;
@@ -276,7 +276,7 @@ void encode_variables(DdManager *manager, int N, int M, int T, DdNode *AS1[N], D
                 if ((v == N-1) && (u == N-1)){
 
                 } else {
-                    printf("S^%d_%d = %d\n", u, t+1, v);
+                    // printf("S^%d_%d = %d\n", u, t+1, v);
                     lookup_table_variables[id][0]= 2;
                     lookup_table_variables[id][1]= u;
                     lookup_table_variables[id][2]= t;
@@ -341,32 +341,27 @@ void encode_variables(DdManager *manager, int N, int M, int T, DdNode *AS1[N], D
         }
     }
 
-    // // Free AO_enc
-    // for (int u = 0; u < N; u++) {
-    //     for (int t = 0; t < T; t++) {
-    //         free(AO_enc[u][t]);
-    //     }
-    //     free(AO_enc[u]);
-    // }
-    // free(AO_enc);
+    // Free AO_enc
+    for (int u = 0; u < N; u++) {
+        for (int t = 0; t < T; t++) {
+            free(AO_enc[u][t]);
+        }
+        free(AO_enc[u]);
+    }
+    free(AO_enc);
 
-    // // Free AS_enc
-    // for (int u = 0; u < N; u++) {
-    //     for (int t = 0; t < T - 1; t++) {
-    //         for (int v = 0; v < N - 1; v++) {
-    //             free(AS_enc[u][t][v]);
-    //         }
-    //         free(AS_enc[u][t]);
-    //     }
-    //     free(AS_enc[u]);
-    // }
-    // free(AS_enc);
+    // Free AS_enc
+    // Free AS_enc
+    for (int u = 0; u < N; u++) {
+        for (int t = 0; t < T - 1; t++) {
+            free(AS_enc[u][t]);
+        }
+        free(AS_enc[u]);
+    }
+    free(AS_enc);
 
-    // // Free AS1_enc
-    // for (int u = 0; u < N - 1; u++) {
-    //     free(AS1_enc[u]);
-    // }
-    // free(AS1_enc);
+    // Free AS1_enc
+    free(AS1_enc);
 
 }
 
@@ -844,10 +839,11 @@ NodeDataNode* FindTargetNodeAtLevel(DdManager* manager, int targetLevel, DdNode*
 }
 
 
+
 /**
- * @brief Backward prosedure where
+ * @brief Backward procedure where
  * 
- *      /Beta(x, n) = probability that paths logicallyreach the terminal node x from node n
+ *      /Beta(x, n) = probability that paths logically reach the terminal node x from node n
  * 
  *  for level in vars: // from lowest level to highest
  *      for node n in level:
@@ -858,31 +854,33 @@ NodeDataNode* FindTargetNodeAtLevel(DdManager* manager, int targetLevel, DdNode*
  * @param M 
  * @return double
  */
-double Backward(DdManager* manager, DdNode* node, const HMM *hmm, int b) {
+double Backward(DdManager* manager, DdNode* node, const HMM *hmm) {
     NodeDataNode *targetNodeData = FindTargetNodeAtLevel(manager, -1, node);
-    if (targetNodeData->backward[b] >= 0) {
-        return targetNodeData->backward[b]; 
+    
+    if (targetNodeData->backward >= 0) {
+        return targetNodeData->backward; 
     }
 
-    // Compute probabilities for the true and false children
+
     DdNode* high = Cudd_T(node);
     DdNode* low = Cudd_E(node);
+    
+    double prob_high = get_prob_encoded(hmm, node, 1) * Backward(manager, high, hmm);
+    double prob_low;
 
-    double prob_high, prob_low, prob;
     if (!Cudd_IsComplement(low)) {
-        prob_low = get_prob_encoded(hmm, node, 0)*Backward(manager, low, hmm, b);
+        prob_low = get_prob_encoded(hmm, node, 0) * Backward(manager, low, hmm);
     } else {
-        prob_low = get_prob_encoded(hmm, node, 0)*Backward(manager, Cudd_Regular(low), hmm, 1-b);
+        // Adjusting for negative (complemented) edge
+        prob_low = get_prob_encoded(hmm, node, 0) * (1.0 - Backward(manager, Cudd_Regular(low), hmm));
     }
-    prob_high =  get_prob_encoded(hmm, node, 1)*Backward(manager, high, hmm, b);
-
+    
     // Calculate the probability for the current node
-    prob = prob_low + prob_high;
-    targetNodeData->backward[b] = prob; // Store in the lookup table
+    double prob = prob_low + prob_high;
+    targetNodeData->backward = prob; // Store in the lookup table
 
     return prob;
 }
-
 
 
 /**
@@ -910,9 +908,9 @@ void CalculateForward(DdManager* manager, DdNode** F_seq, const HMM *hmm, int T)
             printf("ERROR!");
         }
         if (!isNegated) {
-            targetNodeData->forward[1] += 1 / Backward(manager, targetNode, hmm, 1);
+            targetNodeData->forward[1] += 1 / Backward(manager, targetNode, hmm);
         } else {
-            targetNodeData->forward[0] += 1 / Backward(manager, targetNode, hmm, 1);
+            targetNodeData->forward[0] += 1 / Backward(manager, targetNode, hmm);
         }
     }
 
@@ -998,8 +996,8 @@ void InitNodeData(DdManager* manager, DdNode** F_seq, const HMM *hmm, int T) {
                     newNode->node = node;
                     newNode->forward[0] = 0.0; // Inizilize forward with 0
                     newNode->forward[1] = 0.0; // Inizilize forward with 0
-                    newNode->backward[0] = -1.0; // Inizilize backward with 0
-                    newNode->backward[1] = -1.0; // Inizilize backward with 0
+                    newNode->backward = -1.0; // Inizilize backward with 0
+                    
                     
                     
                     newNode->next = NULL;
@@ -1021,22 +1019,11 @@ void InitNodeData(DdManager* manager, DdNode** F_seq, const HMM *hmm, int T) {
     trueTerminal->node = Cudd_Not(Cudd_ReadLogicZero(manager));
     trueTerminal->forward[0] = 0.0;
     trueTerminal->forward[1] = 0.0;
-    trueTerminal->backward[0] = 0.0;
-    trueTerminal->backward[1] = 1.0;
+    trueTerminal->backward = 1.0;
     trueTerminal->next = NULL;
     nodeData[numVars]->head = trueTerminal;
     nodeData[numVars]->tail = trueTerminal;
     
-    // NodeDataNode* falseTerminal = (NodeDataNode*)malloc(sizeof(NodeDataNode));
-    // falseTerminal->node = Cudd_ReadLogicZero(manager);
-    // falseTerminal->forward[0] = 0.0;
-    // falseTerminal->forward[1] = 0.0;
-    // falseTerminal->backward[0] = 1.0;
-    // falseTerminal->backward[1] = 0.0;
-    // falseTerminal->next = NULL;
-    // nodeData[numVars]->tail->next = falseTerminal;
-    // nodeData[numVars]->tail = falseTerminal;
-
 }
 
 void FreeNodeData(int numVars) {
@@ -1188,12 +1175,12 @@ void computeConditionalExpectations(DdManager *manager, DdNode** F_seq, const HM
             double PrLow = get_prob_encoded(hmm, node->node, 0);
             double PrHigh = get_prob_encoded(hmm, node->node, 1);
 
-            e1 = node->forward[0]*PrHigh*highChildData->backward[0] + node->forward[1]*PrHigh*highChildData->backward[1];
+            e1 = node->forward[0]*PrHigh*(1-highChildData->backward) + node->forward[1]*PrHigh*highChildData->backward;
             
             if (!Cudd_IsComplement(lowChild)) {
-                e0 = node->forward[0]*PrLow*lowChildData->backward[0] + node->forward[1]*PrLow*lowChildData->backward[1];
+                e0 = node->forward[0]*PrLow*(1-lowChildData->backward) + node->forward[1]*PrLow*lowChildData->backward;
             } else {
-                e0 = node->forward[0]*PrLow*lowChildData->backward[0] + node->forward[1]*PrLow*lowChildData->backward[1];
+                e0 = node->forward[0]*PrLow*(1-lowChildData->backward) + node->forward[1]*PrLow*lowChildData->backward;
             }
             etaX[x][i][t][j] += e1;
             gamma[x][i][t][j+1]+=e0;
@@ -1252,8 +1239,29 @@ void computeConditionalExpectations(DdManager *manager, DdNode** F_seq, const HM
     }
 
     // Clean up
+    for (int x = 0; x < 3; x++) {
+        for (int i = 0; i < N; i++) {
+            for (int t = 0; t < T; t++) {
+                free(etaX[x][i][t]);
+            }
+            free(etaX[x][i]);
+        }
+        free(etaX[x]);
+    }
     free(etaX);
+
+    for (int x = 0; x < 3; x++) {
+        for (int i = 0; i < N; i++) {
+            for (int t = 0; t < T; t++) {
+                free(gamma[x][i][t]);
+            }
+            free(gamma[x][i]);
+        }
+        free(gamma[x]);
+    }
     free(gamma);
+
+    free(D);
 }
 
 HMM* update(HMM *hmm, double ***eta) {
@@ -1329,6 +1337,8 @@ HMM* learn(HMM *hypothesis_hmm, int T, int O[T])
 
     */
 
+    // printf("initprob: %f\n", log_likelihood_forward(hypothesis_hmm, O, T));
+    double p0 = log_likelihood_forward(hypothesis_hmm, O, T);
     // TODO make the  HMM N and M an input ?
     int N = hypothesis_hmm->N;
     int M = hypothesis_hmm->M;
@@ -1423,8 +1433,10 @@ HMM* learn(HMM *hypothesis_hmm, int T, int O[T])
     // Step 5: Calculate the log-likelyhood of M
 
 
+    // printf("updated prob: %f\n", log_likelihood_forward(new_hmm, O, T));
+    double p1 = log_likelihood_forward(new_hmm, O, T);
 
-
+    printf("improvemment %f\n", p1-p0);
 
 
 
@@ -1449,7 +1461,7 @@ HMM* learn(HMM *hypothesis_hmm, int T, int O[T])
     Cudd_DumpDot(manager, N*T, F_obs, NULL, NULL, outfile);
     fclose(outfile);
 
-
+    free(F_obs);
     FreeNodeData(Cudd_ReadSize(manager));
     Cudd_Quit(manager);
 
