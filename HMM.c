@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include <assert.h>
-
+#include <string.h>
 
 /**
  * @brief Create a Hidden Markov Model (HMM) with the given parameters.
@@ -73,6 +73,29 @@ void HMM_destroy(const HMM *hmm) {
         free(modifiable_hmm);
     }
 
+}
+
+void HMM_copy(HMM* dest, const HMM* src) {
+        
+    // Copy basic fields
+    dest->N = src->N;
+    dest->M = src->M;
+    
+    // Copy name
+    dest->name = strdup(src->name);  // Remember to free the old name in dest if it was dynamically allocated
+
+    // Copy A matrix
+    for (int i = 0; i < src->N; ++i) {
+        memcpy(dest->A[i], src->A[i], src->N * sizeof(double));
+    }
+    
+    // Copy B matrix
+    for (int j = 0; j < src->N; ++j) {
+        memcpy(dest->B[j], src->B[j], src->M * sizeof(double));
+    }
+    
+    // Copy C array
+    memcpy(dest->C, src->C, src->N * sizeof(double));
 }
 
 /**

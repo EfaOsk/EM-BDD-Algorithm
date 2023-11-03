@@ -15,6 +15,7 @@ typedef struct HMM {
 
 HMM* HMM_create(int N, int M, const char *name);
 void HMM_destroy(const HMM *hmm);
+void HMM_copy(HMM* dest, const HMM* src);
 void HMM_print(const HMM *hmm);
 void validate_hmm(const HMM *hmm);
 double probability_single_sequence(const HMM *hmm, const int *observations, int T);

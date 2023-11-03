@@ -1177,7 +1177,7 @@ void computeConditionalExpectations(DdManager *manager, const HMM *hmm, int T, d
     }
 
     temp = 0;
-    for (int level = 1; level < numVars; level++) {
+    for (int level = 1; level <= numVars; level++) {
         int x = lookup_table_variables[level][0];
         int i = lookup_table_variables[level][1];
         int t = lookup_table_variables[level][2];
@@ -1316,45 +1316,99 @@ HMM* learn(HMM *hypothesis_hmm, int T, int O[T])
         (6) retrun M
 
     */
-
-    // printf("initprob: %f\n", log_likelihood_forward(hypothesis_hmm, O, T));
-    double p0 = log_likelihood_forward(hypothesis_hmm, O, T);
-    // printf("\t%f", p0);
-
-    // TODO make the  HMM N and M an input ?
+    
     int N = hypothesis_hmm->N;
     int M = hypothesis_hmm->M;
+    HMM *model = HMM_create(N, M, "model");
+    HMM_copy(model, hypothesis_hmm);
 
-    lookup_table_variables = (int **)malloc((N*T*M-T+N-1+(N*N*(T-1))) * sizeof(int *));
-    for (int id = 0; id <(N*T*M-T+N-1+(N*N*(T-1))); id++) {
-        (lookup_table_variables)[id] = (int *)malloc(4 * sizeof(int));
-    }
+
+    
 
     // Step 1 build (S)BDD
     DdManager *manager = Cudd_Init(0,0,CUDD_UNIQUE_SLOTS,CUDD_CACHE_SLOTS, 0);  
     // Cudd_AutodynEnable(manager, CUDD_REORDER_SAME);
     
+    lookup_table_variables = (int **)malloc((N*T*M-T+N-1+(N*N*(T-1))) * sizeof(int *));
+    for (int id = 0; id <(N*T*M-T+N-1+(N*N*(T-1))); id++) {
+        (lookup_table_variables)[id] = (int *)malloc(4 * sizeof(int));
+    }
 
     DdNode **F_obs = build_F_seq(manager, N, M, T, O);
-
 
     // Step 2: initilize M (= some random HMM) 
         // ToDo currently input
 
 
+    double prob_priv, prob_new;
+    int converged = 0;
+    while (!converged)
+    {
+        prob_priv = log_likelihood_forward(model, O, T);
 
+        // Step 3: E-step
 
-    // Step 3: E-step
-
-    InitNodeData(manager, F_obs, hypothesis_hmm, T);
+        InitNodeData(manager, F_obs, model, T);
     
-    // Step 3 (a) : Backward
+        // Step 3 (a) : Backward
 
+        // Step 3 (b) : Forward
+    
+        CalculateForward(manager, F_obs, model, T);
+
+        // Look at forward and backward values 
+        // for (int level = Cudd_ReadSize(manager) ; level >= 0; level--) {
+        //     NodeDataNode* current = nodeData[level]->head;
+        //     while (current != NULL) {
+        //         printf("Level %d: Node Address: %p \t %f\t %f\t %f\t %f\n", level, (void*)current->node,current->forward[0], current->forward[1], 1-current->backward, current->backward);
+        //         current = current->next;
+        //     }
+        // }
+
+        // Step 3 (c) : Conditional Expectations
+        double ***eta;
+        eta = (double***)malloc(3 * sizeof(double**));
+        for (int i = 0; i < 3; ++i) {
+            eta[i] = (double**)malloc(N * sizeof(double*));
+            for (int j = 0; j < N; ++j) {
+                eta[i][j] = (double*)malloc(M * sizeof(double));
+                for (int k = 0; k < M; ++k) {
+                    eta[i][j][k] = 0.0;
+                }
+            }
+        }
+        computeConditionalExpectations(manager, model, T, eta);
+    
+        // Step 4: M-step
+        // Step 4 (a) : update M
+
+        const HMM *new_hmm = update(model, eta);
+
+        for (int x = 0; x < 3; x++) {
+            for (int i = 0; i < N; i++) {
+                free(eta[x][i]); // Free the innermost arrays
+            }
+            free(eta[x]); // Free the second level pointers
+        }
+        free(eta); // Finally, free the top level pointer
+
+        double prob_new = log_likelihood_forward(new_hmm, O, T);
+
+        
+        HMM_copy(model, new_hmm); 
+        HMM_destroy(new_hmm);
+
+        printf("improvemment %f\n", prob_new-prob_priv);
+
+        converged = 1;
+        if (prob_new <= prob_priv) {
+            converged = 1;
+        }
+
+    }
     
 
-    // Step 3 (b) : Forward
-    
-    CalculateForward(manager, F_obs, hypothesis_hmm, T);
+
 
 
     // Look at forward and backward values 
@@ -1367,18 +1421,6 @@ HMM* learn(HMM *hypothesis_hmm, int T, int O[T])
     // }
 
     // Step 3 (c) : Conditional Expectations
-    double ***eta;
-    eta = (double***)malloc(3 * sizeof(double**));
-    for (int i = 0; i < 3; ++i) {
-        eta[i] = (double**)malloc(N * sizeof(double*));
-        for (int j = 0; j < N; ++j) {
-            eta[i][j] = (double*)malloc(M * sizeof(double));
-            for (int k = 0; k < M; ++k) {
-                eta[i][j][k] = 0.0;
-            }
-        }
-    }
-    computeConditionalExpectations(manager, hypothesis_hmm, T, eta);
     // TODO remove (for texting, prints the conditional expectaion)
     // int NX = 3;
     // for (int x = 0; x < 3; x++) { 
@@ -1396,18 +1438,7 @@ HMM* learn(HMM *hypothesis_hmm, int T, int O[T])
     //     }
     // }
 
-    // Step 4: M-step
-    // Step 4 (a) : update M
 
-    const HMM *new_hmm = update(hypothesis_hmm, eta);
-
-    for (int x = 0; x < 3; x++) {
-        for (int i = 0; i < N; i++) {
-            free(eta[x][i]); // Free the innermost arrays
-        }
-        free(eta[x]); // Free the second level pointers
-    }
-    free(eta); // Finally, free the top level pointer
 
 
     // for (int i = 0; i < new_hmm->N; i++) {
@@ -1434,12 +1465,6 @@ HMM* learn(HMM *hypothesis_hmm, int T, int O[T])
 
 
     // printf("updated prob: %f\n", log_likelihood_forward(new_hmm, O, T));
-    double p1 = log_likelihood_forward(new_hmm, O, T);
-
-    HMM_destroy(new_hmm);
-
-    printf("improvemment %f\n", p1-p0);
-
 
 
 
