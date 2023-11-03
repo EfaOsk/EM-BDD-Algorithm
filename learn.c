@@ -892,9 +892,9 @@ void CalculateForward(DdManager* manager, DdNode** F_seq, const HMM *hmm, int T)
         }
         double backwardVal = Backward(manager, targetNode, hmm);
         if (!isNegated) {
-            targetNodeData->forward[1] += backwardVal;
+            targetNodeData->forward[0] += 1-backwardVal;
         } else {
-            targetNodeData->forward[0] += backwardVal;
+            targetNodeData->forward[1] += backwardVal;
         }
     }
 
@@ -917,15 +917,18 @@ void CalculateForward(DdManager* manager, DdNode** F_seq, const HMM *hmm, int T)
             NodeDataNode* lowNode = FindTargetNodeAtLevel(manager, lowLevel, Cudd_Regular(lowChild));
             NodeDataNode* highNode = FindTargetNodeAtLevel(manager, highLevel, highChild);
 
-            highNode->forward[0] += targetNode->forward[0]* get_prob_encoded(hmm, targetNode->node, 1); 
-            highNode->forward[1] += targetNode->forward[1]* get_prob_encoded(hmm, targetNode->node, 1); 
+            double ProbLowEdge = get_prob_encoded(hmm, targetNode->node, 0);
+            double ProbHighEdge = get_prob_encoded(hmm, targetNode->node, 1);
+
+            highNode->forward[0] += targetNode->forward[0]* ProbHighEdge; 
+            highNode->forward[1] += targetNode->forward[1]* ProbHighEdge; 
 
             if (!Cudd_IsComplement(lowChild)) {
-                lowNode->forward[0] += targetNode->forward[0]* get_prob_encoded(hmm, targetNode->node, 0); 
-                lowNode->forward[1] += targetNode->forward[1]* get_prob_encoded(hmm, targetNode->node, 0); 
+                lowNode->forward[0] += targetNode->forward[0]* ProbLowEdge; 
+                lowNode->forward[1] += targetNode->forward[1]* ProbLowEdge; 
             } else {
-                lowNode->forward[0] += targetNode->forward[1]* get_prob_encoded(hmm, targetNode->node, 0); 
-                lowNode->forward[1] += targetNode->forward[0]* get_prob_encoded(hmm, targetNode->node, 0); 
+                lowNode->forward[0] += targetNode->forward[1]* ProbLowEdge; 
+                lowNode->forward[1] += targetNode->forward[0]* ProbLowEdge; 
             }
 
             // next node
@@ -1400,8 +1403,7 @@ HMM* learn(HMM *hypothesis_hmm, int T, int O[T])
 
         printf("improvemment %f\n", prob_new-prob_priv);
 
-        converged = 1;
-        if (prob_new <= prob_priv) {
+        if (prob_new <= prob_priv+0.01) {
             converged = 1;
         }
 
