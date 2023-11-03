@@ -228,7 +228,7 @@ HMM** initialize_example_models() {
 
     double A10[2][2] = {{0.5, 0.5}, {0.5, 0.5}};
     double B10[2][2] = {{0.5, 0.5}, {0.5, 0.5}};
-    double C10[2] = {1, 0};
+    double C10[2] = {0.9, 0.1};
     models[10] = HMM_create(2, 2, "Example Model 10");
     for (int i = 0; i < 2; i++) {
         for (int j = 0; j < 2; j++) {
@@ -248,4 +248,16 @@ HMM** initialize_example_models() {
 
 
     return models;
+}
+
+
+void free_example_models(HMM **models) {
+    if (models != NULL) {
+        for (int i = 0; i < NUM_MODELS; ++i) {
+            if (models[i] != NULL) {
+                HMM_destroy(models[i]);
+            }
+        }
+        free(models);
+    }
 }

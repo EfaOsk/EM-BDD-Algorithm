@@ -10,5 +10,6 @@
 extern HMM* example_models[NUM_MODELS];
 
 HMM** initialize_example_models();
+void free_example_models(HMM **models);
 
 #endif

@@ -136,19 +136,19 @@ void encode_variables(DdManager *manager, int N, int M, int T, DdNode *AS1[N], D
     for (int u = 0; u < N; u++) {
         AO_enc[u] = (DdNode ***)malloc(T * sizeof(DdNode **));
         for (int t = 0; t < T; t++) {
-            AO_enc[u][t] = (DdNode **)malloc((M - 1) * sizeof(DdNode *));
+            AO_enc[u][t] = (DdNode **)malloc((M) * sizeof(DdNode *));
         }
     }
 
     // Allocate memory for AS1_enc
-    DdNode **AS1_enc = (DdNode **)malloc((N - 1) * sizeof(DdNode *));
+    DdNode **AS1_enc = (DdNode **)malloc((N) * sizeof(DdNode *));
 
     // Allocate memory for AS_enc
     DdNode ****AS_enc = (DdNode ****)malloc(N * sizeof(DdNode ***));
     for (int u = 0; u < N; u++) {
         AS_enc[u] = (DdNode ***)malloc(T * sizeof(DdNode **));
         for (int t = 0; t < T - 1; t++) {
-            AS_enc[u][t] = (DdNode **)malloc((N - 1) * sizeof(DdNode *));
+            AS_enc[u][t] = (DdNode **)malloc((N) * sizeof(DdNode *));
         }
     }
 
@@ -351,7 +351,6 @@ void encode_variables(DdManager *manager, int N, int M, int T, DdNode *AS1[N], D
     free(AO_enc);
 
     // Free AS_enc
-    // Free AS_enc
     for (int u = 0; u < N; u++) {
         for (int t = 0; t < T - 1; t++) {
             free(AS_enc[u][t]);
@@ -499,8 +498,8 @@ DdNode *build_C_A(DdManager *manager, int N, int M, int T, DdNode *AS1[N], DdNod
 
 }
 
-void free_lookup_table_variables( int N, int M, int T) {
-    for (int id = 0; id < (N*T*M-T+N-1+(N*N*(T-1))); id++) {
+void free_lookup_table_variables(int numVars) {
+    for (int id = 0; id < numVars; id++) {
         free(lookup_table_variables[id]);
     }
     free(lookup_table_variables);
@@ -744,57 +743,40 @@ double get_prob_AS_encoded(const HMM *hmm, int i, int j, int b){
  *                          \sum_{i'=i+1}^{N-1}\sum_{j'=0}^{M-1} b(i')(j'))+(\sum_{j'=j}^{M-1} b(i)(j'))
  *                      }
  */
-double get_prob_AO_encoded(const HMM *hmm, int i, int j, int b){
+double get_prob_AO_encoded(const HMM *hmm, int i, int j, int edgeType) {
 
-    if (b==0){ // false edge
-        double sum_num = 0.0;
+    // Calculate sum_denominator which is common for both edgeType
+    double sum_denominator = 0.0;
 
-        for (int i0 = i+1; i0 <= hmm->N - 1; i0++){
-            for (int j0 = 0; j0<= hmm->M -1; j0++){
-                sum_num += hmm->B[i0][j0];
-            }
+    for (int i0 = i+1; i0 <= hmm->N - 1; i0++) {
+        for (int j0 = 0; j0 <= hmm->M - 1; j0++) {
+            sum_denominator += hmm->B[i0][j0];
         }
-        for (int j0 = j+1; j0<= hmm->M -1; j0++){
-            sum_num += hmm->B[i][j0];
-        }
-
-        double sum_den = 0.0;
-
-        for (int i0 = i+1; i0 <= hmm->N - 1; i0++){
-            for (int j0 = 0; j0<= hmm->M -1; j0++){
-                sum_den += hmm->B[i0][j0];
-            }
-        }
-        for (int j0 = j; j0<= hmm->M -1; j0++){
-            sum_den += hmm->B[i][j0];
-        }
-
-        // 
-        return sum_num / sum_den ;
-    } else { // true edge
-        double sum_den = 0.0;
-
-        for (int i0 = i+1; i0 <= hmm->N - 1; i0++){
-            for (int j0 = 0; j0<= hmm->M -1; j0++){
-                sum_den += hmm->B[i0][j0];
-            }
-        }
-        for (int j0 = j; j0<= hmm->M -1; j0++){
-            sum_den += hmm->B[i][j0];
-        }
-
-        // a(i)(j) / 
-        return (hmm->B[i][j]) / sum_den ;
+    }
+    for (int j0 = j; j0 <= hmm->M - 1; j0++) {
+        sum_denominator += hmm->B[i][j0];
     }
 
+    if (edgeType == 0) { // false edge
+        double sum_numerator = 0.0;
+
+        for (int i0 = i+1; i0 <= hmm->N - 1; i0++) {
+            for (int j0 = 0; j0 <= hmm->M - 1; j0++) {
+                sum_numerator += hmm->B[i0][j0];
+            }
+        }
+        for (int j0 = j+1; j0 <= hmm->M - 1; j0++) {
+            sum_numerator += hmm->B[i][j0];
+        }
+
+        return sum_numerator / sum_denominator;
+
+    } else { // true edge
+        return hmm->B[i][j] / sum_denominator;
+    }
 }
 
 double get_prob_encoded(const HMM *hmm, DdNode *n, int b) { 
-    // if (( n== Cudd_Not(Cudd_ReadLogicZero(manager))) || n == Cudd_ReadLogicZero(manager) ) {
-    //     perror("Error: Terminal nodes don't have out edges");
-    //     return -1.0; 
-    // }
-
     int id = Cudd_NodeReadIndex(n);
     int x = lookup_table_variables[id][0];
     int i = lookup_table_variables[id][1];
@@ -906,11 +888,13 @@ void CalculateForward(DdManager* manager, DdNode** F_seq, const HMM *hmm, int T)
         if (targetNodeData == NULL) {
             // raise error, nod not found
             printf("ERROR!");
+            return;
         }
+        double backwardVal = Backward(manager, targetNode, hmm);
         if (!isNegated) {
-            targetNodeData->forward[1] += 1 / Backward(manager, targetNode, hmm);
+            targetNodeData->forward[1] += backwardVal;
         } else {
-            targetNodeData->forward[0] += 1 / Backward(manager, targetNode, hmm);
+            targetNodeData->forward[0] += backwardVal;
         }
     }
 
@@ -1089,14 +1073,14 @@ double get_sigma(const HMM *hmm, int x, int i, int j) {
 }
 
 
-void computeConditionalExpectations(DdManager *manager, DdNode** F_seq, const HMM *hmm, int T, double ****eta) {
+void computeConditionalExpectations(DdManager *manager, const HMM *hmm, int T, double ***eta) {
 
     int N = hmm->N;
-    int NX = (hmm->N > hmm->M) ? hmm->N : hmm->M;
+    int NX = hmm->M; //(hmm->N > hmm->M) ? hmm->N : hmm->M;
     int numVars = Cudd_ReadSize(manager);
     // int T = 3;
     double e0, e1, temp;
-    *eta = (double***)malloc(N * sizeof(double**));
+    // *eta = (double***)malloc(3 * sizeof(double**));
     double ****etaX = (double****)malloc(3 * sizeof(double***)); // x is the leading dimension
 
     // Check memory allocation for etaX
@@ -1107,7 +1091,7 @@ void computeConditionalExpectations(DdManager *manager, DdNode** F_seq, const HM
     // Check memory allocation for gamma
     if (!gamma) { perror("Failed to allocate memory for gamma"); exit(EXIT_FAILURE); }
 
-    double *D = malloc(numVars * sizeof(double));
+    double *D = malloc((numVars+1) * sizeof(double));
 
     // Check memory allocation for D
     if (!D) { perror("Failed to allocate memory for D"); exit(EXIT_FAILURE); }
@@ -1116,9 +1100,6 @@ void computeConditionalExpectations(DdManager *manager, DdNode** F_seq, const HM
         etaX[x] = (double***)malloc(N * sizeof(double**));
         if (!etaX[x]) { perror("Failed to allocate memory for etaX[x]"); exit(EXIT_FAILURE); }
 
-        (*eta)[x] = (double**)malloc(N * sizeof(double*));
-        if (!(*eta)[x]) { perror("Failed to allocate memory for eta[x]"); exit(EXIT_FAILURE); }
-
         gamma[x] = (double***)malloc(N * sizeof(double**));
         if (!gamma[x]) { perror("Failed to allocate memory for gamma[x]"); exit(EXIT_FAILURE); }
 
@@ -1126,8 +1107,6 @@ void computeConditionalExpectations(DdManager *manager, DdNode** F_seq, const HM
             etaX[x][i] = (double**)malloc(T * sizeof(double*));
             if (!etaX[x][i]) { perror("Failed to allocate memory for etaX[x][i]"); exit(EXIT_FAILURE); }
 
-            (*eta)[x][i] = (double*)malloc(T * sizeof(double));
-            if (!(*eta)[x][i]) { perror("Failed to allocate memory for eta[x][i]"); exit(EXIT_FAILURE); }
 
             gamma[x][i] = (double**)malloc(T * sizeof(double*));
             if (!gamma[x][i]) { perror("Failed to allocate memory for gamma[x][i]"); exit(EXIT_FAILURE); }
@@ -1136,19 +1115,20 @@ void computeConditionalExpectations(DdManager *manager, DdNode** F_seq, const HM
                 etaX[x][i][t] = (double*)malloc(NX * sizeof(double));
                 if (!etaX[x][i][t]) { perror("Failed to allocate memory for etaX[x][i][t]"); exit(EXIT_FAILURE); }
 
-                gamma[x][i][t] = (double*)malloc(NX * sizeof(double));
+                gamma[x][i][t] = (double*)malloc((NX+1) * sizeof(double));
                 if (!gamma[x][i][t]) { perror("Failed to allocate memory for etaX[x][i][t]"); exit(EXIT_FAILURE); }
                 
 
                 for (int j = 0; j < NX; j++) {
                     etaX[x][i][t][j] = 0.0;
-                    (*eta)[x][i][j] = 0.0;
                     gamma[x][i][t][j] = 0.0;
                 }
+                gamma[x][i][t][NX] = 0.0;
             }
         }
     }
-    for (int i = 0; i < numVars; i++) {
+
+    for (int i = 0; i < numVars+1; i++) {
         D[i] = 0;
     }
 
@@ -1197,7 +1177,7 @@ void computeConditionalExpectations(DdManager *manager, DdNode** F_seq, const HM
     }
 
     temp = 0;
-    for (int level = 1; level <= numVars; level++) {
+    for (int level = 1; level < numVars; level++) {
         int x = lookup_table_variables[level][0];
         int i = lookup_table_variables[level][1];
         int t = lookup_table_variables[level][2];
@@ -1232,7 +1212,7 @@ void computeConditionalExpectations(DdManager *manager, DdNode** F_seq, const HM
             else { NX = hmm->M; }
             for (int j = 0; j < NX; j++) {
                 for (int t = 0; t < T; t++) {
-                    (*eta)[x][i][j]+= etaX[x][i][t][j];
+                    eta[x][i][j]+= etaX[x][i][t][j];
                 }
             }
         }
@@ -1339,6 +1319,8 @@ HMM* learn(HMM *hypothesis_hmm, int T, int O[T])
 
     // printf("initprob: %f\n", log_likelihood_forward(hypothesis_hmm, O, T));
     double p0 = log_likelihood_forward(hypothesis_hmm, O, T);
+    // printf("\t%f", p0);
+
     // TODO make the  HMM N and M an input ?
     int N = hypothesis_hmm->N;
     int M = hypothesis_hmm->M;
@@ -1386,7 +1368,17 @@ HMM* learn(HMM *hypothesis_hmm, int T, int O[T])
 
     // Step 3 (c) : Conditional Expectations
     double ***eta;
-    computeConditionalExpectations(manager, F_obs, hypothesis_hmm, T, &eta);
+    eta = (double***)malloc(3 * sizeof(double**));
+    for (int i = 0; i < 3; ++i) {
+        eta[i] = (double**)malloc(N * sizeof(double*));
+        for (int j = 0; j < N; ++j) {
+            eta[i][j] = (double*)malloc(M * sizeof(double));
+            for (int k = 0; k < M; ++k) {
+                eta[i][j][k] = 0.0;
+            }
+        }
+    }
+    computeConditionalExpectations(manager, hypothesis_hmm, T, eta);
     // TODO remove (for texting, prints the conditional expectaion)
     // int NX = 3;
     // for (int x = 0; x < 3; x++) { 
@@ -1409,32 +1401,42 @@ HMM* learn(HMM *hypothesis_hmm, int T, int O[T])
 
     const HMM *new_hmm = update(hypothesis_hmm, eta);
 
-
-    for (int i = 0; i < new_hmm->N; i++) {
-        for (int j = 0; j < new_hmm->N; j++) {
-            printf("\t%f", new_hmm->A[i][j]);
+    for (int x = 0; x < 3; x++) {
+        for (int i = 0; i < N; i++) {
+            free(eta[x][i]); // Free the innermost arrays
         }
-        printf("\n");
+        free(eta[x]); // Free the second level pointers
     }
-    printf("\n\n");
+    free(eta); // Finally, free the top level pointer
 
-    for (int i = 0; i < new_hmm->N; i++) {
-        for (int j = 0; j < new_hmm->M; j++) {
-            printf("\t%f", new_hmm->B[i][j]);
-        }
-        printf("\n");
-    }
 
-    for (int i = 0; i < new_hmm->N; i++) {
-        printf("\t%f", new_hmm->C[i]);
-    }
-    printf("\n\n");
+    // for (int i = 0; i < new_hmm->N; i++) {
+    //     for (int j = 0; j < new_hmm->N; j++) {
+    //         printf("\t%f", new_hmm->A[i][j]);
+    //     }
+    //     printf("\n");
+    // }
+    // printf("\n\n");
+
+    // for (int i = 0; i < new_hmm->N; i++) {
+    //     for (int j = 0; j < new_hmm->M; j++) {
+    //         printf("\t%f", new_hmm->B[i][j]);
+    //     }
+    //     printf("\n");
+    // }
+
+    // for (int i = 0; i < new_hmm->N; i++) {
+    //     printf("\t%f", new_hmm->C[i]);
+    // }
+    // printf("\n\n");
 
     // Step 5: Calculate the log-likelyhood of M
 
 
     // printf("updated prob: %f\n", log_likelihood_forward(new_hmm, O, T));
     double p1 = log_likelihood_forward(new_hmm, O, T);
+
+    HMM_destroy(new_hmm);
 
     printf("improvemment %f\n", p1-p0);
 
@@ -1463,6 +1465,7 @@ HMM* learn(HMM *hypothesis_hmm, int T, int O[T])
 
     free(F_obs);
     FreeNodeData(Cudd_ReadSize(manager));
+    free_lookup_table_variables(Cudd_ReadSize(manager));
     Cudd_Quit(manager);
 
     // Step 6: Return the learned model

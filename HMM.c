@@ -59,17 +59,20 @@ HMM* HMM_create(int N, int M, const char *name) {
  * 
  * @param hmm A pointer to the HMM to be destroyed.
  */
-void HMM_destroy(HMM *hmm) {
-    if (hmm != NULL) {
-        for (int i = 0; i < hmm->N; i++) {
-            free(hmm->A[i]);
-            free(hmm->B[i]);
+void HMM_destroy(const HMM *hmm) {
+    HMM *modifiable_hmm = (HMM *)hmm;
+
+    if (modifiable_hmm != NULL) {
+        for (int i = 0; i < modifiable_hmm->N; i++) {
+            free(modifiable_hmm->A[i]);
+            free(modifiable_hmm->B[i]);
         }
-        free(hmm->A);
-        free(hmm->B);
-        free(hmm->C);
-        free(hmm);
+        free(modifiable_hmm->A);
+        free(modifiable_hmm->B);
+        free(modifiable_hmm->C);
+        free(modifiable_hmm);
     }
+
 }
 
 /**
