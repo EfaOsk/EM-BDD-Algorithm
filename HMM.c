@@ -341,3 +341,45 @@ double log_likelihood_forward(const HMM *hmm, const int *observations, int T) {
 
     return log_likelihood;
 }
+
+
+// Utility function to choose a state or observation based on a probability distribution
+static int choose_from_distribution(double *probabilities, int size) {
+    double r = (double)rand() / (double)RAND_MAX;
+    double sum = 0.0;
+    for (int i = 0; i < size; i++) {
+        sum += probabilities[i];
+        if (r <= sum) {
+            return i;
+        }
+    }
+    // In case of floating point arithmetic issues
+    return size - 1; 
+}
+
+// Function to generate a sequence of observations from a HMM model
+int* HMM_generate_sequence(const HMM *hmm, int T) {
+    if (hmm == NULL || T <= 0) {
+        return NULL;
+    }
+
+    // Allocate memory for the sequence
+    int *sequence = (int*)malloc(T * sizeof(int));
+    if (sequence == NULL) {
+        fprintf(stderr, "Memory allocation failed for sequence.\n");
+        return NULL;
+    }
+
+    // Start from the initial state based on initial state probabilities C
+    int state = choose_from_distribution(hmm->C, hmm->N);
+
+    for (int t = 0; t < T; t++) {
+        // Generate the observation based on the emission probabilities B
+        sequence[t] = choose_from_distribution(hmm->B[state], hmm->M);
+        
+        // Transition to the next state based on the transition probabilities A
+        state = choose_from_distribution(hmm->A[state], hmm->N);
+    }
+
+    return sequence;
+}

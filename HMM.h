@@ -21,5 +21,7 @@ void validate_hmm(const HMM *hmm);
 double probability_single_sequence(const HMM *hmm, const int *observations, int T);
 double log_likelihood_forward(const HMM *hmm, const int *observations, int T);
 void draw_hmm(const HMM *hmm, const char *dotFileName);
+int* HMM_generate_sequence(const HMM *hmm, int T);
+
 
 #endif // HMM_H
