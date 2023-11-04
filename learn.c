@@ -892,9 +892,11 @@ void CalculateForward(DdManager* manager, DdNode** F_seq, const HMM *hmm, int T)
         }
         double backwardVal = Backward(manager, targetNode, hmm);
         if (!isNegated) {
-            targetNodeData->forward[0] += 1-backwardVal;
+            // even number of comple edges
+            targetNodeData->forward[1] += 1 / backwardVal;
         } else {
-            targetNodeData->forward[1] += backwardVal;
+            // odd number of comple edges
+            targetNodeData->forward[0] += 1 / (1 - backwardVal);
         }
     }
 
@@ -1045,12 +1047,12 @@ double get_sigma(const HMM *hmm, int x, int i, int j) {
 
     double sum = 0.0;
     if (x == 0) {
-        for (int i0 = i+1; i0 <= hmm->N - 1; i0++){
-            for (int j0 = 0; j0<= hmm->M -1; j0++){
+        for (int i0 = i+1; i0 < hmm->N; i0++){
+            for (int j0 = 0; j0< hmm->M; j0++){
                 sum += hmm->B[i0][j0];
             }
         }
-        for (int j0 = j; j0<= hmm->M -1; j0++){
+        for (int j0 = j; j0 < hmm->M; j0++){
             sum += hmm->B[i][j0];
         }
         return sum;
@@ -1060,12 +1062,12 @@ double get_sigma(const HMM *hmm, int x, int i, int j) {
         }
         return sum;
     } else if (x == 2) {
-        for (int i0 = i+1; i0 <= hmm->N - 1; i0++){
-            for (int j0 = 0; j0<= hmm->N -1; j0++){
+        for (int i0 = i+1; i0 < hmm->N; i0++){
+            for (int j0 = 0; j0 < hmm->N; j0++){
                 sum += hmm->A[i0][j0];
             }
         }
-        for (int j0 = j; j0<= hmm->N -1; j0++){
+        for (int j0 = j; j0 < hmm->N; j0++){
             sum += hmm->A[i][j0];
         }
         return sum;
@@ -1163,13 +1165,13 @@ void computeConditionalExpectations(DdManager *manager, const HMM *hmm, int T, d
             if (!Cudd_IsComplement(lowChild)) {
                 e0 = node->forward[0]*PrLow*(1-lowChildData->backward) + node->forward[1]*PrLow*lowChildData->backward;
             } else {
-                e0 = node->forward[0]*PrLow*(1-lowChildData->backward) + node->forward[1]*PrLow*lowChildData->backward;
+                e0 = node->forward[0]*PrLow*(lowChildData->backward) + node->forward[1]*PrLow*(1-lowChildData->backward);
             }
             etaX[x][i][t][j] += e1;
-            gamma[x][i][t][j+1]+=e0;
-            gamma[x][i][t][j]-= e0 + e1;
 
-            // D[B] is assumed to be some kind of storage or data structure
+            gamma[x][i][t][j+1] += e0;
+            gamma[x][i][t][j] -= e0 + e1;
+
             D[level+1] += e0 + e1;
             D[highLevel] -= e1;
             D[lowLevel] -= e0;
@@ -1180,7 +1182,7 @@ void computeConditionalExpectations(DdManager *manager, const HMM *hmm, int T, d
     }
 
     temp = 0;
-    for (int level = 1; level <= numVars; level++) {
+    for (int level = 1; level < numVars; level++) {
         int x = lookup_table_variables[level][0];
         int i = lookup_table_variables[level][1];
         int t = lookup_table_variables[level][2];
@@ -1396,14 +1398,15 @@ HMM* learn(HMM *hypothesis_hmm, int T, int O[T])
         free(eta); // Finally, free the top level pointer
 
         double prob_new = log_likelihood_forward(new_hmm, O, T);
-
+        
         
         HMM_copy(model, new_hmm); 
         HMM_destroy(new_hmm);
 
         printf("improvemment %f\n", prob_new-prob_priv);
-
-        if (prob_new <= prob_priv+0.01) {
+        // HMM_print(model);
+        // validate_hmm(model);
+        if (prob_new <= prob_priv+0.05) {
             converged = 1;
         }
 
@@ -1411,89 +1414,16 @@ HMM* learn(HMM *hypothesis_hmm, int T, int O[T])
     
 
 
-
-
-    // Look at forward and backward values 
-    // for (int level = Cudd_ReadSize(manager) ; level >= 0; level--) {
-    //     NodeDataNode* current = nodeData[level]->head;
-    //     while (current != NULL) {
-    //         printf("Level %d: Node Address: %p \t %f\t %f\t %f\t %f\n", level, (void*)current->node,current->forward[0], current->forward[1], current->backward[0], current->backward[1]);
-    //         current = current->next;
-    //     }
-    // }
-
-    // Step 3 (c) : Conditional Expectations
-    // TODO remove (for texting, prints the conditional expectaion)
-    // int NX = 3;
-    // for (int x = 0; x < 3; x++) { 
-    //     int tempN = N;
-    //     if (x == 1) { tempN = 1; }
-    //     for (int i = 0; i < tempN; i++) {
-    //         // for (int t = 0; t < T; t++) {
-    //             if (x > 0) { NX = N; } 
-    //             else { NX = M; }
-    //             for (int j = 0; j < NX; j++) {
-    //                 // why can I not acces eta here?
-    //                 printf("\t%f\n", eta[x][i][j]);
-    //             }
-    //         // }
-    //     }
-    // }
-
-
-
-
-    // for (int i = 0; i < new_hmm->N; i++) {
-    //     for (int j = 0; j < new_hmm->N; j++) {
-    //         printf("\t%f", new_hmm->A[i][j]);
-    //     }
-    //     printf("\n");
-    // }
-    // printf("\n\n");
-
-    // for (int i = 0; i < new_hmm->N; i++) {
-    //     for (int j = 0; j < new_hmm->M; j++) {
-    //         printf("\t%f", new_hmm->B[i][j]);
-    //     }
-    //     printf("\n");
-    // }
-
-    // for (int i = 0; i < new_hmm->N; i++) {
-    //     printf("\t%f", new_hmm->C[i]);
-    // }
-    // printf("\n\n");
-
-    // Step 5: Calculate the log-likelyhood of M
-
-
-    // printf("updated prob: %f\n", log_likelihood_forward(new_hmm, O, T));
-
-
-
-
     // ToDo: remove (For Debuging):
-    printf("N : %d | ", N );
-    printf("M : %d | ", M );
-    printf("T : %d | ", T );
-    printf("Encode: TRUE | ");
-    printf("DdManager vars: %d | ", Cudd_ReadSize(manager) ); /*Returns the number of BDD variables in existence*/
-    printf("DdManager nodes: %ld | ", Cudd_ReadNodeCount(manager) ); // countUniqueNodes(manager, pow(M,T), F_all) );/*Reports the number of live nodes in BDDs and ADDs*/
-    printf("DdManager reorderings: %d | ", Cudd_ReadReorderings(manager) ); /*Returns the number of times reordering has occurred*/
-    printf("DdManager memory: %ld \n", Cudd_ReadMemoryInUse(manager) ); /*Returns the memory in use by the manager measured in bytes*/
+    // printf("N : %d | ", N );
+    // printf("M : %d | ", M );
+    // printf("T : %d | ", T );
+    // printf("Encode: TRUE | ");
+    // printf("DdManager vars: %d | ", Cudd_ReadSize(manager) ); /*Returns the number of BDD variables in existence*/
+    // printf("DdManager nodes: %ld | ", Cudd_ReadNodeCount(manager) ); // countUniqueNodes(manager, pow(M,T), F_all) );/*Reports the number of live nodes in BDDs and ADDs*/
+    // printf("DdManager reorderings: %d | ", Cudd_ReadReorderings(manager) ); /*Returns the number of times reordering has occurred*/
+    // printf("DdManager memory: %ld \n", Cudd_ReadMemoryInUse(manager) ); /*Returns the memory in use by the manager measured in bytes*/
 
-
-    char filename[30];
-    sprintf(filename, "./graphs/graph.dot"); /*Write .dot filename to a string*/
-
-    FILE *outfile; // output file pointer for .dot file
-    outfile = fopen(filename,"w");
-    Cudd_DumpDot(manager, N*T, F_obs, NULL, NULL, outfile);
-    fclose(outfile);
-
-    free(F_obs);
-    FreeNodeData(Cudd_ReadSize(manager));
-    free_lookup_table_variables(Cudd_ReadSize(manager));
-    Cudd_Quit(manager);
 
     // Step 6: Return the learned model
 
