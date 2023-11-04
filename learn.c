@@ -1255,11 +1255,19 @@ HMM* update(HMM *hmm, double ***eta) {
     // update b
     for (int u = 0; u < hmm->N; u++) {
         sum = 0.0;
+        // ToDo: remove this quick fix, handles when obs is in alphabet, but not data to learn
         for (int o = 0; o < hmm->M; o++) {
-            sum += eta[0][u][o];
+            if (eta[0][u][o]>=0){
+                sum += eta[0][u][o];
+            }
         }
         for (int o = 0; o < hmm->M; o++) {
-            new_hmm->B[u][o] = eta[0][u][o] / sum;
+            // ToDo: remove this quick fix, handles when obs is in alphabet, but not data to learn
+            if (eta[0][u][o]>=0){
+                new_hmm->B[u][o] = eta[0][u][o] / sum;
+            } else {
+                new_hmm->B[u][o] = 0.0;
+            }
         }
     }
     // update pi
@@ -1403,9 +1411,9 @@ HMM* learn(HMM *hypothesis_hmm, int T, int O[T])
         HMM_copy(model, new_hmm); 
         HMM_destroy(new_hmm);
 
-        printf("improvemment %f\n", prob_new-prob_priv);
+        printf("improvemment %f : %f, %f\n", prob_new-prob_priv, prob_new, prob_priv);
         // HMM_print(model);
-        // validate_hmm(model);
+        validate_hmm(model);
         if (prob_new <= prob_priv+0.05) {
             converged = 1;
         }
