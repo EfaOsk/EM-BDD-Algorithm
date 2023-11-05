@@ -6,7 +6,7 @@
 #include "HMM.h"
 
 
-HMM* learn(HMM *orignal_hmm, int T, int O[T]);
+HMM* learn(HMM *hypothesis_hmm, int T, int O[T], double epsilon, const char *logs_folder, const char *result_file);
 
 typedef struct NodeDataNode {
     DdNode* node;

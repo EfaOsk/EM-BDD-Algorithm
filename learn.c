@@ -2,6 +2,9 @@
 #include <assert.h>
 #include <math.h>
 #include <stdlib.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <time.h>
 #include "cudd.h"
 #include "HMM.h"
 #include "learn.h"
@@ -1298,13 +1301,14 @@ HMM* update(HMM *hmm, double ***eta) {
  * 
  *      Uses the cour structure of the Baum-Welch algorithm, and BDDs, in order to improve the time and memory complexity
  *       
- * @param N       The number of variables.
- * @param M       The number of variables in AO.
- * @param T       The length of the sequence.
- * @param O       Observation sequence
- * @return struct HMM 
+ * @param hypothesis_hmm  Pointer to an HMM structure, which is the initial hypothesis for the HMM.
+ * @param T               The length of the observation sequence.
+ * @param O               Observation sequence, an array of integers of length T.
+ * @param epsilon         The convergence threshold; when the change in log likelihood is less than or equal to this value, learning stops.
+ * @param logs_folder     Path to the folder where logs and model files will be saved.
+ * @return HMM*           Pointer to the learned HMM structure.
  */
-HMM* learn(HMM *hypothesis_hmm, int T, int O[T])
+HMM* learn(HMM *hypothesis_hmm, int T, int O[T], double epsilon, const char *logs_folder, const char *result_file)
 {
     /*
 
@@ -1335,6 +1339,20 @@ HMM* learn(HMM *hypothesis_hmm, int T, int O[T])
     HMM *model = HMM_create(N, M, "model");
     HMM_copy(model, hypothesis_hmm);
 
+    // for loging
+    int iteration = 0;
+    char log_filename[256];
+    char model_filename[256];
+
+    // Construct the log filename
+    sprintf(log_filename, "%s/log.test", logs_folder);
+
+    // Open the log file
+    FILE *log_file = fopen(log_filename, "w");
+    if (log_file == NULL) {
+        perror("Error opening log file");
+        return NULL;
+    }
 
     
 
@@ -1353,10 +1371,13 @@ HMM* learn(HMM *hypothesis_hmm, int T, int O[T])
         // ToDo currently input
 
 
-    double prob_priv, prob_new;
+    double prob_priv, prob_new, prob_original;
+    prob_original = log_likelihood_forward(model, O, T);
     int converged = 0;
     while (!converged)
     {
+        clock_t start_time = clock();
+
         prob_priv = log_likelihood_forward(model, O, T);
 
         // Step 3: E-step
@@ -1368,15 +1389,6 @@ HMM* learn(HMM *hypothesis_hmm, int T, int O[T])
         // Step 3 (b) : Forward
     
         CalculateForward(manager, F_obs, model, T);
-
-        // Look at forward and backward values 
-        // for (int level = Cudd_ReadSize(manager) ; level >= 0; level--) {
-        //     NodeDataNode* current = nodeData[level]->head;
-        //     while (current != NULL) {
-        //         printf("Level %d: Node Address: %p \t %f\t %f\t %f\t %f\n", level, (void*)current->node,current->forward[0], current->forward[1], 1-current->backward, current->backward);
-        //         current = current->next;
-        //     }
-        // }
 
         // Step 3 (c) : Conditional Expectations
         double ***eta;
@@ -1411,15 +1423,44 @@ HMM* learn(HMM *hypothesis_hmm, int T, int O[T])
         HMM_copy(model, new_hmm); 
         HMM_destroy(new_hmm);
 
-        printf("improvemment %f : %f, %f\n", prob_new-prob_priv, prob_new, prob_priv);
         // HMM_print(model);
         validate_hmm(model);
-        if (prob_new <= prob_priv+0.05) {
+
+        clock_t end_time = clock();
+        double iteration_time = (double)(end_time - start_time) / CLOCKS_PER_SEC;
+
+        fprintf(log_file, "Iteration: %d, Log Likelihood: %f, Improvement: %f, Time: %f\n",
+                iteration, prob_new, prob_new-prob_priv, iteration_time);
+        fflush(log_file); 
+
+        sprintf(model_filename, "%s/models/model_%d", logs_folder, iteration);
+        HMM_save(model, model_filename); 
+
+        if (prob_new <= prob_priv+epsilon) {
             converged = 1;
         }
-
+        iteration++;
     }
+
     
+    // Open the result file in append mode
+    FILE *result_fp = fopen(result_file, "a");
+    if (result_fp == NULL) {
+        perror("Error opening result file");
+        // Handle the error, possibly by cleaning up and returning
+        HMM_destroy(model);
+        fclose(log_file);
+        return NULL;
+    }
+
+    // Append the results to the result file
+    fprintf(result_fp, "%s, %d, %f, %f\n", hypothesis_hmm->name, iteration, prob_new, prob_new - prob_original);
+
+    // Close the result file
+    fclose(result_fp);
+
+    // Close the log file
+    fclose(log_file);
 
 
     // ToDo: remove (For Debuging):
@@ -1435,5 +1476,5 @@ HMM* learn(HMM *hypothesis_hmm, int T, int O[T])
 
     // Step 6: Return the learned model
 
-    return hypothesis_hmm;
+    return model;
 }
