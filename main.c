@@ -56,12 +56,13 @@ int main(int argc, char *argv[]) {
     for (int i = 0; i < 11; i++) {
         int *observations = HMM_generate_sequence(example_models[i], T);
 
-        printf("\n");
         sprintf(result_folder, "experiments/experiments_0/model_%d/logs", i);
         HMM* hypothesis_hmm = HMM_random_create(example_models[i]->N, example_models[i]->M, "hypothesis model");
-        HMM *learned_model = learn(hypothesis_hmm, T, observations, 0.005, result_folder, "experiments/experiments_0/results.txt"); 
-        printf("\n\n");
-        HMM_print(learned_model);
+        HMM *learned_model = learn(hypothesis_hmm, T, observations, 0.001, result_folder, "experiments/experiments_0/results.txt"); 
+        
+        FILE *result_fp = fopen("experiments/experiments_0/results.txt", "a");
+        fprintf(result_fp, ", %f\n", log_likelihood_forward(example_models[i], observations, T));
+        fclose(result_fp);
     }
 
     free_example_models(example_models);

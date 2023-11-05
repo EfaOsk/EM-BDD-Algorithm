@@ -1345,7 +1345,7 @@ HMM* learn(HMM *hypothesis_hmm, int T, int O[T], double epsilon, const char *log
     char model_filename[256];
 
     // Construct the log filename
-    sprintf(log_filename, "%s/log.test", logs_folder);
+    sprintf(log_filename, "%s/log.txt", logs_folder);
 
     // Open the log file
     FILE *log_file = fopen(log_filename, "w");
@@ -1371,14 +1371,13 @@ HMM* learn(HMM *hypothesis_hmm, int T, int O[T], double epsilon, const char *log
         // ToDo currently input
 
 
-    double prob_priv, prob_new, prob_original;
+    double prob_priv, prob_original, prob_new;
     prob_original = log_likelihood_forward(model, O, T);
+    prob_priv = prob_original;
     int converged = 0;
     while (!converged)
     {
         clock_t start_time = clock();
-
-        prob_priv = log_likelihood_forward(model, O, T);
 
         // Step 3: E-step
 
@@ -1417,7 +1416,7 @@ HMM* learn(HMM *hypothesis_hmm, int T, int O[T], double epsilon, const char *log
         }
         free(eta); // Finally, free the top level pointer
 
-        double prob_new = log_likelihood_forward(new_hmm, O, T);
+        prob_new = log_likelihood_forward(new_hmm, O, T);
         
         
         HMM_copy(model, new_hmm); 
@@ -1439,9 +1438,9 @@ HMM* learn(HMM *hypothesis_hmm, int T, int O[T], double epsilon, const char *log
         if (prob_new <= prob_priv+epsilon) {
             converged = 1;
         }
+        prob_priv = prob_new;
         iteration++;
     }
-
     
     // Open the result file in append mode
     FILE *result_fp = fopen(result_file, "a");
@@ -1453,8 +1452,10 @@ HMM* learn(HMM *hypothesis_hmm, int T, int O[T], double epsilon, const char *log
         return NULL;
     }
 
+ 
+
     // Append the results to the result file
-    fprintf(result_fp, "%s, %d, %f, %f\n", hypothesis_hmm->name, iteration, prob_new, prob_new - prob_original);
+    fprintf(result_fp, "%d, %f, %f", iteration, prob_new, prob_new - prob_original);
 
     // Close the result file
     fclose(result_fp);
