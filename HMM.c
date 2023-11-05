@@ -138,6 +138,128 @@ void HMM_print(const HMM *hmm) {
 }
 
 
+/**
+ * Saves an HMM model to a file.
+ * 
+ * This function writes the HMM's parameters (number of states, number of observations,
+ * transition probabilities, observation probabilities, initial state probabilities,
+ * and name) to a file in a plain text format.
+ * 
+ * @param hmm A pointer to the HMM structure to be saved.
+ * @param filename The name of the file to which the HMM data will be written.
+ *                 If the file already exists, it will be overwritten.
+ */
+void HMM_save(const HMM *hmm, const char *filename) {
+    FILE *file = fopen(filename, "w");
+    if (file == NULL) {
+        perror("Error opening file");
+        return;
+    }
+
+    // Write the number of states and number of observations
+    fprintf(file, "%d %d\n", hmm->N, hmm->M);
+
+    // Write the name of the HMM
+    fprintf(file, "%s\n", hmm->name);
+
+    // Write the initial state probability vector
+    for (int i = 0; i < hmm->N; i++) {
+        fprintf(file, "%.6f ", hmm->C[i]);
+    }
+    fprintf(file, "\n");
+
+    // Write the state transition probability matrix
+    for (int i = 0; i < hmm->N; i++) {
+        for (int j = 0; j < hmm->N; j++) {
+            fprintf(file, "%.6f ", hmm->A[i][j]);
+        }
+        fprintf(file, "\n");
+    }
+
+    // Write the observation probability matrix
+    for (int i = 0; i < hmm->N; i++) {
+        for (int j = 0; j < hmm->M; j++) {
+            fprintf(file, "%.6f ", hmm->B[i][j]);
+        }
+        fprintf(file, "\n");
+    }
+
+    fclose(file);
+}
+
+
+/**
+ * Loads an HMM model from a file.
+ * 
+ * @param filename The name of the file from which the HMM data will be read.
+ * @return A pointer to the newly created HMM structure, or NULL if the file
+ *         could not be opened, the data could not be read, or memory allocation
+ *         failed.
+ */
+HMM* HMM_load(const char *filename) {
+    FILE *file = fopen(filename, "r");
+    if (file == NULL) {
+        perror("Error opening file");
+        return NULL;
+    }
+
+    int N, M;
+    // Read the number of states and number of observations
+    if (fscanf(file, "%d %d\n", &N, &M) != 2) {
+        fclose(file);
+        return NULL;
+    }
+
+    // Read the name of the HMM
+    char nameBuffer[256]; // Assuming the name will not exceed 255 characters
+    if (fgets(nameBuffer, sizeof(nameBuffer), file) == NULL) {
+        fclose(file);
+        return NULL;
+    }
+    // Remove possible newline character read by fgets
+    nameBuffer[strcspn(nameBuffer, "\r\n")] = 0;
+
+    // Allocate memory for HMM
+    HMM* hmm = HMM_create(N, M, nameBuffer);
+    if (hmm == NULL) {
+        fclose(file);
+        return NULL;
+    }
+
+    // Read the initial state probability vector
+    for (int i = 0; i < N; i++) {
+        if (fscanf(file, "%lf", &(hmm->C[i])) != 1) {
+            HMM_destroy(hmm);
+            fclose(file);
+            return NULL;
+        }
+    }
+
+    // Read the state transition probability matrix
+    for (int i = 0; i < N; i++) {
+        for (int j = 0; j < N; j++) {
+            if (fscanf(file, "%lf", &(hmm->A[i][j])) != 1) {
+                HMM_destroy(hmm);
+                fclose(file);
+                return NULL;
+            }
+        }
+    }
+
+    // Read the observation probability matrix
+    for (int i = 0; i < N; i++) {
+        for (int j = 0; j < M; j++) {
+            if (fscanf(file, "%lf", &(hmm->B[i][j])) != 1) {
+                HMM_destroy(hmm);
+                fclose(file);
+                return NULL;
+            }
+        }
+    }
+
+    fclose(file);
+    return hmm;
+}
 
 /**
  * @brief Validate a Hidden Markov Model (HMM) to ensure it meets certain criteria.
