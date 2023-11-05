@@ -364,6 +364,61 @@ void draw_hmm(const HMM *hmm, const char *dotFileName) {
 }
 
 
+/**
+ * Generate a Random Hidden Markov Model (HMM) for a given number of states (N).
+ *
+ * @param N     The number of states in the HMM.
+ * @param M     The number of observations in the HMM.
+ * @param name  The name or identifier for the HMM.
+ * @return      A pointer to the randomly created HMM.
+ */
+HMM* HMM_random_create(int N, int M, const char *name) {
+
+    HMM* hmm = HMM_create(N, M, name);
+    if (hmm == NULL) {
+        return NULL;
+    }
+
+    // Initialize the transition probability matrix A
+    for (int i = 0; i < N; ++i) {
+        double sum = 0.0;
+        for (int j = 0; j < N; ++j) {
+            hmm->A[i][j] = (double)rand() / RAND_MAX;
+            sum += hmm->A[i][j];
+        }
+        // Normalize to make the sum of probabilities equal to 1
+        for (int j = 0; j < N; ++j) {
+            hmm->A[i][j] /= sum;
+        }
+    }
+
+    // Initialize the observation probability matrix B
+    for (int i = 0; i < N; ++i) {
+        double sum = 0.0;
+        for (int j = 0; j < M; ++j) {
+            hmm->B[i][j] = (double)rand() / RAND_MAX;
+            sum += hmm->B[i][j];
+        }
+        // Normalize
+        for (int j = 0; j < M; ++j) {
+            hmm->B[i][j] /= sum;
+        }
+    }
+
+    // Initialize the initial state probability vector C
+    double sum = 0.0;
+    for (int i = 0; i < N; ++i) {
+        hmm->C[i] = (double)rand() / RAND_MAX;
+        sum += hmm->C[i];
+    }
+    // Normalize
+    for (int i = 0; i < N; ++i) {
+        hmm->C[i] /= sum;
+    }
+
+    return hmm;
+}
+
 double probability_single_sequence(const HMM *hmm, const int *observations, int T) {
     int N = hmm->N;
     int M = hmm->M;
