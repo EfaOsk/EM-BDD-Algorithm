@@ -839,30 +839,30 @@ NodeDataNode* FindTargetNodeAtLevel(DdManager* manager, int targetLevel, DdNode*
  * @param M 
  * @return double
  */
-double Backward(DdManager* manager, DdNode* node, const HMM *hmm) {
+double Backward(DdManager* manager, DdNode* node, const HMM *hmm, int b) {
     NodeDataNode *targetNodeData = FindTargetNodeAtLevel(manager, -1, node);
     
-    if (targetNodeData->backward >= 0) {
-        return targetNodeData->backward; 
+    if (targetNodeData->backward[b] >= 0) {
+        return targetNodeData->backward[b]; 
     }
 
 
     DdNode* high = Cudd_T(node);
     DdNode* low = Cudd_E(node);
     
-    double prob_high = get_prob_encoded(hmm, node, 1) * Backward(manager, high, hmm);
+    double prob_high = get_prob_encoded(hmm, node, 1) * Backward(manager, high, hmm,b);
     double prob_low;
 
     if (!Cudd_IsComplement(low)) {
-        prob_low = get_prob_encoded(hmm, node, 0) * Backward(manager, low, hmm);
+        prob_low = get_prob_encoded(hmm, node, 0) * Backward(manager, low, hmm,b);
     } else {
         // Adjusting for negative (complemented) edge
-        prob_low = get_prob_encoded(hmm, node, 0) * (1.0 - Backward(manager, Cudd_Regular(low), hmm));
+        prob_low = get_prob_encoded(hmm, node, 0) * (Backward(manager, Cudd_Regular(low), hmm, 1-b));
     }
     
     // Calculate the probability for the current node
     double prob = prob_low + prob_high;
-    targetNodeData->backward = prob; // Store in the lookup table
+    targetNodeData->backward[b] = prob; // Store in the lookup table
 
     return prob;
 }
@@ -893,13 +893,13 @@ void CalculateForward(DdManager* manager, DdNode** F_seq, const HMM *hmm, int T)
             printf("ERROR!");
             return;
         }
-        double backwardVal = Backward(manager, targetNode, hmm);
+        // double backwardVal = Backward(manager, targetNode, hmm);
         if (!isNegated) {
             // even number of comple edges
-            targetNodeData->forward[1] += 1 / backwardVal;
+            targetNodeData->forward[1] += 1 / Backward(manager, targetNode, hmm, 1);
         } else {
             // odd number of comple edges
-            targetNodeData->forward[0] += 1 / (1 - backwardVal);
+            targetNodeData->forward[0] += 1 / Backward(manager, targetNode, hmm, 0);
         }
     }
 
@@ -988,7 +988,8 @@ void InitNodeData(DdManager* manager, DdNode** F_seq, const HMM *hmm, int T) {
                     newNode->node = node;
                     newNode->forward[0] = 0.0; // Inizilize forward with 0
                     newNode->forward[1] = 0.0; // Inizilize forward with 0
-                    newNode->backward = -1.0; // Inizilize backward with 0
+                    newNode->backward[1] = -1.0; // Inizilize backward with 0
+                    newNode->backward[0] = -1.0;
                     
                     
                     
@@ -1011,7 +1012,8 @@ void InitNodeData(DdManager* manager, DdNode** F_seq, const HMM *hmm, int T) {
     trueTerminal->node = Cudd_Not(Cudd_ReadLogicZero(manager));
     trueTerminal->forward[0] = 0.0;
     trueTerminal->forward[1] = 0.0;
-    trueTerminal->backward = 1.0;
+    trueTerminal->backward[0] = 0.0;
+    trueTerminal->backward[1] = 1.0;
     trueTerminal->next = NULL;
     nodeData[numVars]->head = trueTerminal;
     nodeData[numVars]->tail = trueTerminal;
@@ -1162,13 +1164,13 @@ void computeConditionalExpectations(DdManager *manager, const HMM *hmm, int T, d
             NodeDataNode *highChildData = FindTargetNodeAtLevel(manager, highLevel, highChild);
             double PrLow = get_prob_encoded(hmm, node->node, 0);
             double PrHigh = get_prob_encoded(hmm, node->node, 1);
-
-            e1 = node->forward[0]*PrHigh*(1-highChildData->backward) + node->forward[1]*PrHigh*highChildData->backward;
+            
+            e1 = node->forward[0]*PrHigh*Backward(manager, highChildData->node, hmm, 0) + node->forward[1]*PrHigh*Backward(manager, highChildData->node, hmm, 1);
             
             if (!Cudd_IsComplement(lowChild)) {
-                e0 = node->forward[0]*PrLow*(1-lowChildData->backward) + node->forward[1]*PrLow*lowChildData->backward;
+                e0 = node->forward[0]*PrLow*Backward(manager, lowChildData->node, hmm, 0) + node->forward[1]*PrLow*Backward(manager, lowChildData->node, hmm, 1);
             } else {
-                e0 = node->forward[0]*PrLow*(lowChildData->backward) + node->forward[1]*PrLow*(1-lowChildData->backward);
+                e0 = node->forward[0]*PrLow*Backward(manager, lowChildData->node, hmm, 1) + node->forward[1]*PrLow*Backward(manager, lowChildData->node, hmm, 0);
             }
             etaX[x][i][t][j] += e1;
 
@@ -1345,10 +1347,11 @@ HMM* learn(HMM *hypothesis_hmm, int T, int O[T], double epsilon, const char *log
     char model_filename[256];
 
     // Construct the log filename
-    sprintf(log_filename, "%s/log.txt", logs_folder);
+    // sprintf(log_filename, "%s/log.txt", logs_folder);
+    sprintf(log_filename, "tmp_log.txt");
 
     // Open the log file
-    FILE *log_file = fopen(log_filename, "w");
+    FILE *log_file = fopen(log_filename, "a");
     if (log_file == NULL) {
         perror("Error opening log file");
         return NULL;
@@ -1428,12 +1431,13 @@ HMM* learn(HMM *hypothesis_hmm, int T, int O[T], double epsilon, const char *log
         clock_t end_time = clock();
         double iteration_time = (double)(end_time - start_time) / CLOCKS_PER_SEC;
 
+        // printf("\timprovement: %f\n", prob_new-prob_priv);
         fprintf(log_file, "Iteration: %d, Log Likelihood: %f, Improvement: %f, Time: %f\n",
                 iteration, prob_new, prob_new-prob_priv, iteration_time);
         fflush(log_file); 
 
-        sprintf(model_filename, "%s/models/model_%d", logs_folder, iteration);
-        HMM_save(model, model_filename); 
+        // sprintf(model_filename, "%s/models/model_%d", logs_folder, iteration);
+        // HMM_save(model, model_filename); 
 
         if (prob_new <= prob_priv+epsilon) {
             converged = 1;
