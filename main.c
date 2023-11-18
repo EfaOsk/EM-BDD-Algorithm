@@ -41,7 +41,7 @@ int main(int argc, char *argv[]) {
     //     HMM_destroy(example_models[i] );
 
     // }
-    int T = 6;
+    int T = 8;
     // int *observations = HMM_generate_sequence(example_models[7], T);
 
     // Calculate the probability of the sequence
@@ -53,8 +53,12 @@ int main(int argc, char *argv[]) {
     char result_folder[256];
 
 
-    for (int i = 0; i < 11; i++) {
+    for (int i = 10; i < 11; i++) {
         int *observations = HMM_generate_sequence(example_models[i], T);
+        for (int o = 0; o<T;o++) {
+            printf("%d, ", observations[o]);
+        }
+        printf("\n");
 
         sprintf(result_folder, "experiments/experiments_0/model_%d/logs", i);
         HMM* hypothesis_hmm = HMM_random_create(example_models[i]->N, example_models[i]->M, "hypothesis model");
