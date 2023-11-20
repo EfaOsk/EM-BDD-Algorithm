@@ -910,8 +910,8 @@ void InitNodeData(DdManager* manager, DdNode** F_seq, const HMM *hmm, int T) {
                 if (!nodeExists) {
                     NodeDataNode* newNode = (NodeDataNode*)malloc(sizeof(NodeDataNode));
                     newNode->node = node;
-                    newNode->forward[0] = 0.0; // Inizilize forward with 0
-                    newNode->forward[1] = 0.0; // Inizilize forward with 0
+                    newNode->forward[0] = -20; // Inizilize forward with 0
+                    newNode->forward[1] = -20; // Inizilize forward with 0
                     newNode->backward = -1.0; // Inizilize backward with 0
                     
                     
@@ -933,8 +933,8 @@ void InitNodeData(DdManager* manager, DdNode** F_seq, const HMM *hmm, int T) {
 
     NodeDataNode* trueTerminal = (NodeDataNode*)malloc(sizeof(NodeDataNode));
     trueTerminal->node = Cudd_Not(Cudd_ReadLogicZero(manager));
-    trueTerminal->forward[0] = 0.0;
-    trueTerminal->forward[1] = 0.0;
+    trueTerminal->forward[0] = -8;
+    trueTerminal->forward[1] = -8;
     trueTerminal->backward = 0.0;
     trueTerminal->next = NULL;
     nodeData[numVars]->head = trueTerminal;
@@ -1096,7 +1096,7 @@ void computeConditionalExpectations(DdManager *manager, const HMM *hmm, int T, d
             //     highChildData->backward = Backward(manager, highChildData->node, hmm);
             //     printf("\t%f\n", lowChildData->backward);
             // }
-            e1 = node->forward[0]*PrHigh*(1-highChildData->backward) + node->forward[1]*PrHigh*highChildData->backward;
+            // e1 = node->forward[0]*PrHigh*(1-highChildData->backward) + node->forward[1]*PrHigh*highChildData->backward;
             e1 = log_sum_exp(node->forward[0] + PrHigh + log1p(-exp(highChildData->backward)),
                  node->forward[1] + PrHigh + highChildData->backward);
 
@@ -1107,6 +1107,8 @@ void computeConditionalExpectations(DdManager *manager, const HMM *hmm, int T, d
                 e0 = log_sum_exp(node->forward[0] + PrLow + lowChildData->backward,
                                 node->forward[1] + PrLow + log1p(-exp(lowChildData->backward)));
             }
+            e1 = exp(e1);
+            e0 = exp(e0);
             etaX[x][i][t][j] += e1;
 
             gamma[x][i][t][j+1] += e0;
@@ -1192,7 +1194,7 @@ void computeConditionalExpectations(DdManager *manager, const HMM *hmm, int T, d
 HMM* update(HMM *hmm, double ***eta) {
     HMM *new_hmm = HMM_create(hmm->N, hmm->M, "Updated model");
     double sum;
-    double min_p_f = 0.00001;
+    double min_p_f = 0.0;
     // update b
     for (int u = 0; u < hmm->N; u++) {
         sum = min_p_f*hmm->M;
@@ -1280,7 +1282,7 @@ HMM* learn(HMM *hypothesis_hmm, int T, int O[T], double epsilon, const char *log
 
     // Construct the log filename
     // sprintf(log_filename, "%s/log.txt", logs_folder);
-    sprintf(log_filename, "tmp_log.txt");
+    sprintf(log_filename, "Fs_log.txt");
 
     // Open the log file
     FILE *log_file = fopen(log_filename, "a");
@@ -1358,7 +1360,7 @@ HMM* learn(HMM *hypothesis_hmm, int T, int O[T], double epsilon, const char *log
         HMM_copy(model, new_hmm); 
         HMM_destroy(new_hmm);
 
-        HMM_print(model);
+        // HMM_print(model);
         validate_hmm(model);
 
         clock_t end_time = clock();
