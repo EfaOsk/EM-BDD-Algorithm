@@ -833,7 +833,7 @@ double Backward(DdManager* manager, DdNode* node, const HMM *hmm) {
 void CalculateForward(DdManager* manager, DdNode** F_seq, const HMM *hmm, int T) {
     int numVars = Cudd_ReadSize(manager); // Cudd_ReadNodeCount(manager)+(hmm->N)*T+2;
  
-    for (int r = 0; r < hmm->N*(T-1)+1; r++) {
+    for (int r = 0; r < 1; r++) {
         DdNode *targetNode = F_seq[r];
         int isNegated = Cudd_IsComplement(targetNode);
         if (isNegated) {
@@ -916,7 +916,7 @@ void InitNodeData(DdManager* manager, DdNode** F_seq, const HMM *hmm, int T) {
     DdGen *gen;
 
 
-    for (int r = 0; r < (hmm->N)*(T-1)+1; r++){
+    for (int r = 0; r < 1; r++){
         Cudd_ForeachNode(manager, F_seq[r], gen, node) {
             if (node == Cudd_ReadLogicZero(manager) || node == Cudd_Not(Cudd_ReadLogicZero(manager))) {
                 // Terminal node
@@ -1304,7 +1304,8 @@ HMM* learn(HMM *hypothesis_hmm, int T, int O[T], double epsilon, const char *log
     char model_filename[256];
 
     // Construct the log filename
-    sprintf(log_filename, "%s/log.txt", logs_folder);
+    // sprintf(log_filename, "%s/log.txt", logs_folder);
+    sprintf(log_filename, "tmp_log.txt");
 
     // Open the log file
     FILE *log_file = fopen(log_filename, "a");
