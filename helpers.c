@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdbool.h>
 #include "cudd.h"
+#include <math.h>
 
 
 /**
@@ -52,4 +53,9 @@ void write_dds (DdManager *gbm, DdNode **ddnodearray, char* filename)
     Cudd_DumpDot(gbm, 2, ddnodearray, NULL, NULL, outfile); // dump the function to .dot file
     free(ddnodearray);
     fclose (outfile); // close the file */
+}
+
+double log_sum_exp(double a, double b) {
+    double max_val = (a > b) ? a : b;
+    return max_val + log(exp(a - max_val) + exp(b - max_val));
 }

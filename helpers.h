@@ -22,4 +22,6 @@ struct DoubleMatrix
     struct DoubleArray *data;
 };
 
+double log_sum_exp(double a, double b);
+
 #endif
