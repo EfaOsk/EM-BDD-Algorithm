@@ -565,36 +565,22 @@ DdNode **build_F_seq(DdManager *manager, int N, int M, int T, int O[T]) {
  *                          \sum_{i'=i}^{N-1}\pi(i')
  *                      }
  */
-double get_prob_AS1_encoded(const HMM *hmm, int i, int b){
-
-    
-    if (b==0){ // false edge
-        double sum = 0.0;
-
-        for (int i0 = i; i0 < hmm->N; i0++){
-            sum += hmm->C[i0];
-        }
-        double sum_ = 0.0;
-
-        for (int i0 = i+1; i0 < hmm->N; i0++){
-            sum_ += hmm->C[i0];
-        }
-
-        // Sum_{i'=i+1}^{i=N-1} pi(i'/ Sum_{i'=i}^{i=N-1} pi(i') 
-        return sum_ / sum ;
-    } else { // true edge
-        double sum = 0.0;
-
-        for (int i0 = i; i0 < hmm->N; i0++){
-            sum += hmm->C[i0];
-        }
-
-        //pi(i)/ Sum_{i'=i}^{i=N-1} pi(i') 
-        return (hmm->C[i]) / sum ;
+double get_prob_AS1_encoded(const HMM *hmm, int i, int b) {
+    double sum = 0.0;
+    for (int i0 = i; i0 < hmm->N; i0++) {
+        sum += hmm->C[i0];
     }
 
+    if (b == 0) { // false edge
+        double sum_ = 0.0;
+        for (int i0 = i+1; i0 < hmm->N; i0++) {
+            sum_ += hmm->C[i0];
+        }
+        return log(sum_) - log(sum);
+    } else { // true edge
+        return log(hmm->C[i]) - log(sum);
+    }
 }
-
 
 /**
  * @brief Calculate the edge probability in a SBDD reprentation of a HMM.
@@ -625,51 +611,34 @@ double get_prob_AS1_encoded(const HMM *hmm, int i, int b){
  *                          \sum_{i'=i+1}^{N-1}\sum_{j'=0}^{N-1} a(i')(j'))+(\sum_{j'=j}^{N-1} a(i)(j'))
  *                      }
  */
-double get_prob_AS_encoded(const HMM *hmm, int i, int j, int b){
+double get_prob_AS_encoded(const HMM *hmm, int i, int j, int b) {
+    // Calculate the sum for the denominator
+    double sum_den = 0.0;
+    for (int i0 = i+1; i0 <= hmm->N - 1; i0++) {
+        for (int j0 = 0; j0 <= hmm->N -1; j0++) {
+            sum_den += hmm->A[i0][j0];
+        }
+    }
+    for (int j0 = j; j0 <= hmm->N -1; j0++) {
+        sum_den += hmm->A[i][j0];
+    }
 
-    if (b==0){ // false edge
+    if (b == 0) { // False edge
         double sum_num = 0.0;
-
-        for (int i0 = i+1; i0 <= hmm->N - 1; i0++){
-            for (int j0 = 0; j0<= hmm->N -1; j0++){
+        for (int i0 = i+1; i0 <= hmm->N - 1; i0++) {
+            for (int j0 = 0; j0 <= hmm->N -1; j0++) {
                 sum_num += hmm->A[i0][j0];
             }
         }
-        for (int j0 = j+1; j0<= hmm->N -1; j0++){
+        for (int j0 = j+1; j0 <= hmm->N -1; j0++) {
             sum_num += hmm->A[i][j0];
         }
 
-        double sum_den = 0.0;
-
-        for (int i0 = i+1; i0 <= hmm->N - 1; i0++){
-            for (int j0 = 0; j0<= hmm->N -1; j0++){
-                sum_den += hmm->A[i0][j0];
-            }
-        }
-        for (int j0 = j; j0<= hmm->N -1; j0++){
-            sum_den += hmm->A[i][j0];
-        }
-
-        // 
-        return sum_num / sum_den ;
-    } else { // true edge
-        double sum_den = 0.0;
-
-        for (int i0 = i+1; i0 <= hmm->N - 1; i0++){
-            for (int j0 = 0; j0<= hmm->N -1; j0++){
-                sum_den += hmm->A[i0][j0];
-            }
-        }
-        for (int j0 = j; j0<= hmm->N -1; j0++){
-            sum_den += hmm->A[i][j0];
-        }
-
-        // a(i)(j) / 
-        return (hmm->A[i][j]) / sum_den ;
+        return log(sum_num) - log(sum_den);
+    } else { // True edge
+        return log(hmm->A[i][j]) - log(sum_den);
     }
-
 }
-
 
 /**
  * @brief Calculate the edge probability in a SBDD reprentation of a HMM.
@@ -701,10 +670,8 @@ double get_prob_AS_encoded(const HMM *hmm, int i, int j, int b){
  *                      }
  */
 double get_prob_AO_encoded(const HMM *hmm, int i, int j, int edgeType) {
-
-    // Calculate sum_denominator which is common for both edgeType
+    // Calculate the denominator sum, which is common for both edge types
     double sum_denominator = 0.0;
-
     for (int i0 = i+1; i0 <= hmm->N - 1; i0++) {
         for (int j0 = 0; j0 <= hmm->M - 1; j0++) {
             sum_denominator += hmm->B[i0][j0];
@@ -714,9 +681,8 @@ double get_prob_AO_encoded(const HMM *hmm, int i, int j, int edgeType) {
         sum_denominator += hmm->B[i][j0];
     }
 
-    if (edgeType == 0) { // false edge
+    if (edgeType == 0) { // False edge
         double sum_numerator = 0.0;
-
         for (int i0 = i+1; i0 <= hmm->N - 1; i0++) {
             for (int j0 = 0; j0 <= hmm->M - 1; j0++) {
                 sum_numerator += hmm->B[i0][j0];
@@ -726,12 +692,12 @@ double get_prob_AO_encoded(const HMM *hmm, int i, int j, int edgeType) {
             sum_numerator += hmm->B[i][j0];
         }
 
-        return sum_numerator / sum_denominator;
-
-    } else { // true edge
-        return hmm->B[i][j] / sum_denominator;
+        return log(sum_numerator) - log(sum_denominator);
+    } else { // True edge
+        return log(hmm->B[i][j]) - log(sum_denominator);
     }
 }
+
 
 double get_prob_encoded(const HMM *hmm, DdNode *n, int b) { 
     int id = Cudd_NodeReadIndex(n);
@@ -796,29 +762,32 @@ NodeDataNode* FindTargetNodeAtLevel(DdManager* manager, int targetLevel, DdNode*
 double Backward(DdManager* manager, DdNode* node, const HMM *hmm) {
     NodeDataNode *targetNodeData = FindTargetNodeAtLevel(manager, -1, node);
     
-    if (targetNodeData->backward >= 0) {
+    if (targetNodeData->backward != -1) {
         return targetNodeData->backward; 
     }
-
 
     DdNode* high = Cudd_T(node);
     DdNode* low = Cudd_E(node);
     
-    double prob_high = get_prob_encoded(hmm, node, 1) * Backward(manager, high, hmm);
-    double prob_low;
+    double log_prob_high = get_prob_encoded(hmm, node, 1) + Backward(manager, high, hmm);
+    double log_prob_low;
 
     if (!Cudd_IsComplement(low)) {
-        prob_low = get_prob_encoded(hmm, node, 0) * Backward(manager, low, hmm);
+        log_prob_low = get_prob_encoded(hmm, node, 0) + Backward(manager, low, hmm);
     } else {
         // Adjusting for negative (complemented) edge
-        prob_low = get_prob_encoded(hmm, node, 0) * (1.0 - Backward(manager, Cudd_Regular(low), hmm));
+        double backwardVal = Backward(manager, Cudd_Regular(low), hmm);
+        if (backwardVal < SOME_NEGATIVE_THRESHOLD) {
+            log_prob_low = get_prob_encoded(hmm, node, 0); // Represents log(1) as exp(backwardVal) underflows to 0
+        } else {
+            log_prob_low = get_prob_encoded(hmm, node, 0) + log1p(-exp(backwardVal));
+        }
     }
     
-    // Calculate the probability for the current node
-    double prob = prob_low + prob_high;
-    targetNodeData->backward = prob; // Store in the lookup table
-
-    return prob;
+    // Calculate the log probability for the current node using log_sum_exp
+    double log_prob = log_sum_exp(log_prob_low, log_prob_high);
+    targetNodeData->backward = log_prob; // Store in the lookup table
+    return log_prob;
 }
 
 
@@ -844,16 +813,16 @@ void CalculateForward(DdManager* manager, DdNode** F_seq, const HMM *hmm, int T)
         NodeDataNode* targetNodeData = FindTargetNodeAtLevel(manager, level, targetNode);
         if (targetNodeData == NULL) {
             // raise error, nod not found
-            printf("ERROR!");
+            printf("ERROR: Node not found!");
             return;
         }
-        double backwardVal = Backward(manager, targetNode, hmm);
+        double log_backwardVal = Backward(manager, targetNode, hmm);
         if (!isNegated) {
             // even number of comple edges
-            targetNodeData->forward[1] += 1 / (1 - backwardVal);
+            targetNodeData->forward[1] = log_sum_exp(targetNodeData->forward[1], -log_backwardVal);
         } else {
             // odd number of comple edges
-            targetNodeData->forward[0] += 1 / (1 - backwardVal);
+            targetNodeData->forward[0] = log_sum_exp(targetNodeData->forward[0], -log_backwardVal);
         }
     }
 
@@ -876,18 +845,19 @@ void CalculateForward(DdManager* manager, DdNode** F_seq, const HMM *hmm, int T)
             NodeDataNode* lowNode = FindTargetNodeAtLevel(manager, lowLevel, Cudd_Regular(lowChild));
             NodeDataNode* highNode = FindTargetNodeAtLevel(manager, highLevel, highChild);
 
-            double ProbLowEdge = get_prob_encoded(hmm, targetNode->node, 0);
-            double ProbHighEdge = get_prob_encoded(hmm, targetNode->node, 1);
+            double log_ProbLowEdge = get_prob_encoded(hmm, targetNode->node, 0);
+            double log_ProbHighEdge = get_prob_encoded(hmm, targetNode->node, 1);
 
-            highNode->forward[0] += targetNode->forward[0]* ProbHighEdge; 
-            highNode->forward[1] += targetNode->forward[1]* ProbHighEdge; 
+            highNode->forward[0] = log_sum_exp(highNode->forward[0], targetNode->forward[0] + log_ProbHighEdge);
+            highNode->forward[1] = log_sum_exp(highNode->forward[1], targetNode->forward[1] + log_ProbHighEdge);
+
 
             if (!Cudd_IsComplement(lowChild)) {
-                lowNode->forward[0] += targetNode->forward[0]* ProbLowEdge; 
-                lowNode->forward[1] += targetNode->forward[1]* ProbLowEdge; 
+                lowNode->forward[0] = log_sum_exp(lowNode->forward[0], targetNode->forward[0] + log_ProbLowEdge);
+                lowNode->forward[1] = log_sum_exp(lowNode->forward[1], targetNode->forward[1] + log_ProbLowEdge);
             } else {
-                lowNode->forward[0] += targetNode->forward[1]* ProbLowEdge; 
-                lowNode->forward[1] += targetNode->forward[0]* ProbLowEdge; 
+                lowNode->forward[0] = log_sum_exp(lowNode->forward[0], targetNode->forward[1] + log_ProbLowEdge);
+                lowNode->forward[1] = log_sum_exp(lowNode->forward[1], targetNode->forward[0] + log_ProbLowEdge);
             }
 
             // next node
@@ -965,7 +935,7 @@ void InitNodeData(DdManager* manager, DdNode** F_seq, const HMM *hmm, int T) {
     trueTerminal->node = Cudd_Not(Cudd_ReadLogicZero(manager));
     trueTerminal->forward[0] = 0.0;
     trueTerminal->forward[1] = 0.0;
-    trueTerminal->backward = 1.0;
+    trueTerminal->backward = 0.0;
     trueTerminal->next = NULL;
     nodeData[numVars]->head = trueTerminal;
     nodeData[numVars]->tail = trueTerminal;
@@ -1083,7 +1053,6 @@ void computeConditionalExpectations(DdManager *manager, const HMM *hmm, int T, d
                     etaX[x][i][t][j] = 0.0;
                     gamma[x][i][t][j] = 0.0;
                 }
-                gamma[x][i][t][NX] = 0.0;
             }
         }
     }
@@ -1115,24 +1084,28 @@ void computeConditionalExpectations(DdManager *manager, const HMM *hmm, int T, d
             double PrLow = get_prob_encoded(hmm, node->node, 0);
             double PrHigh = get_prob_encoded(hmm, node->node, 1);
 
-            if (highChildData->backward<0) {
-                printf("STOP!!!\n");
-                printf("\t%f\n", highChildData->backward);
-                highChildData->backward = Backward(manager, highChildData->node, hmm);
-                printf("\t%f\n", highChildData->backward);
-            }
-            if (lowChildData->backward<0) {
-                printf("stop!!!\n");
-                printf("\t%f\n", lowChildData->backward);
-                highChildData->backward = Backward(manager, highChildData->node, hmm);
-                printf("\t%f\n", lowChildData->backward);
-            }
+            // if (highChildData->backward<0) {
+            //     printf("STOP!!!\n");
+            //     printf("\t%f\n", highChildData->backward);
+            //     highChildData->backward = Backward(manager, highChildData->node, hmm);
+            //     printf("\t%f\n", highChildData->backward);
+            // }
+            // if (lowChildData->backward<0) {
+            //     printf("stop!!!\n");
+            //     printf("\t%f\n", lowChildData->backward);
+            //     highChildData->backward = Backward(manager, highChildData->node, hmm);
+            //     printf("\t%f\n", lowChildData->backward);
+            // }
             e1 = node->forward[0]*PrHigh*(1-highChildData->backward) + node->forward[1]*PrHigh*highChildData->backward;
-            
+            e1 = log_sum_exp(node->forward[0] + PrHigh + log1p(-exp(highChildData->backward)),
+                 node->forward[1] + PrHigh + highChildData->backward);
+
             if (!Cudd_IsComplement(lowChild)) {
-                e0 = node->forward[0]*PrLow*(1-lowChildData->backward) + node->forward[1]*PrLow*lowChildData->backward;
+                e0 = log_sum_exp(node->forward[0] + PrLow + log1p(-exp(lowChildData->backward)),
+                                node->forward[1] + PrLow + lowChildData->backward);
             } else {
-                e0 = node->forward[0]*PrLow*(lowChildData->backward) + node->forward[1]*PrLow*(1-lowChildData->backward);
+                e0 = log_sum_exp(node->forward[0] + PrLow + lowChildData->backward,
+                                node->forward[1] + PrLow + log1p(-exp(lowChildData->backward)));
             }
             etaX[x][i][t][j] += e1;
 
@@ -1229,6 +1202,7 @@ HMM* update(HMM *hmm, double ***eta) {
                 sum += eta[0][u][o];
             }
         }
+        printf("\tA sum : %f\n", sum);
         for (int o = 0; o < hmm->M; o++) {
             new_hmm->B[u][o] = (eta[0][u][o]+min_p_f) / sum;
         }
@@ -1247,6 +1221,7 @@ HMM* update(HMM *hmm, double ***eta) {
         for (int v = 0; v < hmm->N; v++) {
             sum += eta[2][u][v];
         }
+        printf("\tB sum : %f\n", sum);
         for (int v = 0; v < hmm->N; v++) {
             new_hmm->A[u][v] = (eta[2][u][v]+min_p_f) / sum;
         }
