@@ -94,11 +94,12 @@ DdNode **build_F_single_seq_O(DdManager *manager, int N, int M, int T, DdNode *A
 
 
 
-    DdNode **flattenedArray = (DdNode **)malloc((T) * N * sizeof(DdNode *));
+    DdNode **flattenedArray = (DdNode **)malloc(((T-1) * N  + 1) * sizeof(DdNode *));
 
     // Flatten the 2D array into the 1D array.
-    int count = 0;
-    for (int t = 0; t < T; t++) {
+    flattenedArray[0]= FO_;
+    int count = 1;
+    for (int t = 1; t < T; t++) {
         for (int n = 0; n < N; n++) {
             flattenedArray[count] = FO[t][n]; // Cudd_BddToAdd(manager, FO[t][n]);
             count++;
@@ -511,7 +512,7 @@ DdNode **build_F_seq(DdManager *manager, int N, int M, int T, int O[T]) {
     // If not encode, set the initial varables
     // DdNode* C_A= build_C_A(manager, N, M, T, AS1, AS, AO);
     
-    DdNode** F_seq = malloc(N*(T+1) * sizeof(DdNode*));
+    DdNode** F_seq = malloc((N*(T-1) + 1 ) * sizeof(DdNode*));
     DdNode** temp = build_F_single_seq_O(manager, N, M, T, AS1, AS, AO, O);
     // F_seq =  Cudd_BddToAdd(manager, Cudd_bddAnd(manager, C_A, temp)); // If not encode
     F_seq =  temp;
@@ -832,7 +833,7 @@ double Backward(DdManager* manager, DdNode* node, const HMM *hmm) {
 void CalculateForward(DdManager* manager, DdNode** F_seq, const HMM *hmm, int T) {
     int numVars = Cudd_ReadSize(manager); // Cudd_ReadNodeCount(manager)+(hmm->N)*T+2;
  
-    for (int r = 0; r < hmm->N*T; r++) {
+    for (int r = 0; r < hmm->N*(T-1)+1; r++) {
         DdNode *targetNode = F_seq[r];
         int isNegated = Cudd_IsComplement(targetNode);
         if (isNegated) {
@@ -915,7 +916,7 @@ void InitNodeData(DdManager* manager, DdNode** F_seq, const HMM *hmm, int T) {
     DdGen *gen;
 
 
-    for (int r = 0; r < (hmm->N)*T; r++){
+    for (int r = 0; r < (hmm->N)*(T-1)+1; r++){
         Cudd_ForeachNode(manager, F_seq[r], gen, node) {
             if (node == Cudd_ReadLogicZero(manager) || node == Cudd_Not(Cudd_ReadLogicZero(manager))) {
                 // Terminal node
@@ -1088,7 +1089,7 @@ void computeConditionalExpectations(DdManager *manager, const HMM *hmm, int T, d
     }
 
     for (int i = 0; i < numVars+1; i++) {
-        D[i] = 0;
+        D[i] = 0.0;
     }
 
     for (int level = 0; level < numVars; level++) {
@@ -1438,7 +1439,7 @@ HMM* learn(HMM *hypothesis_hmm, int T, int O[T], double epsilon, const char *log
     sprintf(filename, "./graphs/graph.dot"); /*Write .dot filename to a string*/
     FILE *outfile; // output file pointer for .dot file
     outfile = fopen(filename,"w");
-    Cudd_DumpDot(manager, N*T, F_obs, NULL, NULL, outfile);
+    Cudd_DumpDot(manager, (N*(T-1) + 1 ), F_obs, NULL, NULL, outfile);
     fclose(outfile);
     free(F_obs);
     FreeNodeData(Cudd_ReadSize(manager));
