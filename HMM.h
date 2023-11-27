@@ -22,7 +22,8 @@ HMM* HMM_load(const char *filename);
 void validate_hmm(const HMM *hmm);
 HMM* HMM_random_create(int N, int M, const char *name);
 double probability_single_sequence(const HMM *hmm, const int *observations, int T);
-double log_likelihood_forward(const HMM *hmm, const int *observations, int T);
+double log_likelihood(const HMM *hmm, const int *observations, int T);
+HMM* HMM_learn(HMM *hypothesis_hmm, int T, int O[T], double epsilon, const char *logs_folder, const char *result_file);
 void draw_hmm(const HMM *hmm, const char *dotFileName);
 int* HMM_generate_sequence(const HMM *hmm, int T);
 
