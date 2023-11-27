@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdbool.h>
 #include "cudd.h"
+#include <math.h>
 
 
 /**
@@ -52,4 +53,49 @@ void write_dds (DdManager *gbm, DdNode **ddnodearray, char* filename)
     Cudd_DumpDot(gbm, 2, ddnodearray, NULL, NULL, outfile); // dump the function to .dot file
     free(ddnodearray);
     fclose (outfile); // close the file */
+}
+
+double** allocate_matrix(int rows, int cols, double initialValue) 
+{
+    double **matrix = (double **)malloc(rows * sizeof(double *));
+    if (matrix == NULL) {
+        return NULL;
+    }
+
+    for (int i = 0; i < rows; i++) {
+        matrix[i] = (double *)malloc(cols * sizeof(double));
+        if (matrix[i] == NULL) {
+            // Free previously allocated rows
+            for (int j = 0; j < i; j++) {
+                free(matrix[j]);
+            }
+            free(matrix);
+            return NULL;
+        }
+        for (int j = 0; j < cols; j++) {
+            matrix[i][j] = initialValue;
+        }
+    }
+    return matrix;
+}
+
+double*** allocate_3D_matrix(int depth, int rows, int cols, double initialValue) {
+    // Allocate memory for the array of pointers to 2D matrices
+    double ***matrix = (double ***)malloc(depth * sizeof(double **));
+    if (matrix == NULL) {
+        return NULL;
+    }
+
+    // Allocate each 2D matrix
+    for (int d = 0; d < depth; d++) {
+        matrix[d] = allocate_matrix(rows, cols, initialValue);
+    }
+
+    return matrix;
+}
+
+
+double log_sum_exp(double a, double b) {
+    double max_val = (a > b) ? a : b;
+    return max_val + log(exp(a - max_val) + exp(b - max_val));
 }

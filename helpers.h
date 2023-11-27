@@ -4,7 +4,6 @@
 
 #include <stdio.h>
 #include "cudd.h"
-#include <stdbool.h>
 
 
 void write_dd (DdManager *gbm, DdNode *dd, char* filename );
@@ -21,5 +20,9 @@ struct DoubleMatrix
     size_t n;
     struct DoubleArray *data;
 };
+
+double** allocate_matrix(int rows, int cols, double initialValue);
+double*** allocate_3D_matrix(int depth, int rows, int cols, double initialValue);
+double log_sum_exp(double a, double b);
 
 #endif

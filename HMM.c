@@ -4,6 +4,7 @@
 #include <assert.h>
 #include <string.h>
 #include <time.h>
+#include "helpers.h"
 
 /**
  * @brief Create a Hidden Markov Model (HMM) with the given parameters.
@@ -13,47 +14,33 @@
  * @param name  The name or identifier for the HMM.
  * @return      A pointer to the created HMM.
  */
-HMM* HMM_create(int N, int M, const char *name) {
-    HMM *hmm = malloc(sizeof(HMM));
+HMM* HMM_create(int N, int M, const char *name) 
+{
+    HMM *hmm = (HMM *)malloc(sizeof(HMM));
     if (hmm == NULL) {
-        // Handle memory allocation error
+        perror("Failed to allocate memory for HMM structure.\n");
         return NULL;
     }
 
     hmm->N = N;
     hmm->M = M;
-    hmm->name = name;
+    hmm->name = strdup(name);  // Allocate and copy name
 
-    // Allocate memory for A, B, and C matrices/vectors
-    hmm->A = (double **)malloc(N * sizeof(double *));
-    hmm->B = (double **)malloc(N * sizeof(double *));
+    hmm->A = allocate_matrix(N, N, 0.0);
+    hmm->B = allocate_matrix(N, M, 0.0);
     hmm->C = (double *)malloc(N * sizeof(double));
-
     if (hmm->A == NULL || hmm->B == NULL || hmm->C == NULL) {
-        fprintf(stderr, "Memory allocation failed\n");
-        free(hmm->A);
-        free(hmm->B);
-        free(hmm->C);
-        free(hmm);
+        perror("Failed to allocate memory for HMM matrices/vectors.\n");
         return NULL;
     }
 
-    // ToDo: Remove this
-    // Initialize A B and C 
     for (int i = 0; i < N; i++) {
-        hmm->A[i] = (double *)malloc(N * sizeof(double));
-        hmm->B[i] = (double *)malloc(M * sizeof(double));
-        for (int j = 0; j < N; j++) {
-            hmm->A[i][j] = 0.0;
-        }
-        for (int j = 0; j < M; j++) {
-            hmm->B[i][j] = 0.0;
-        }
         hmm->C[i] = 0.0;
     }
 
     return hmm;
 }
+
 
 /**
  * @brief Destroy a Hidden Markov Model (HMM) and free its memory.
@@ -99,6 +86,7 @@ void HMM_copy(HMM* dest, const HMM* src) {
     memcpy(dest->C, src->C, src->N * sizeof(double));
 }
 
+
 /**
  * @brief Print the details of a Hidden Markov Model (HMM) to the console.
  * 
@@ -106,7 +94,7 @@ void HMM_copy(HMM* dest, const HMM* src) {
  */
 void HMM_print(const HMM *hmm) {
     if (hmm == NULL) {
-        fprintf(stderr, "Invalid hmm\n");
+        perror("Invalid hmm\n");
         return;
     }
 
@@ -268,7 +256,7 @@ HMM* HMM_load(const char *filename) {
  *
  * @param hmm   A pointer to the HMM.
  */
-void validate_hmm(const HMM *hmm) {
+void HMM_validate(const HMM *hmm) {
     int N = hmm->N;
     int M = hmm->M;
 
@@ -421,127 +409,11 @@ HMM* HMM_random_create(int N, int M, const char *name) {
 }
 
 
-double probability_single_sequence(const HMM *hmm, const int *observations, int T) {
-    int N = hmm->N;
-    int M = hmm->M;
-
-    // Allocate memory for the forward probabilities matrix
-    double **alpha = (double **)malloc(T * sizeof(double *));
-    for (int t = 0; t < T; t++) {
-        alpha[t] = (double *)malloc(N * sizeof(double));
-    }
-
-    // Initialize the first row of alpha with initial probabilities and observations
-    for (int i = 0; i < N; i++) {
-        alpha[0][i] = hmm->C[i] * hmm->B[i][observations[0]];
-    }
-
-    // Calculate the forward probabilities for the rest of the sequence
-    for (int t = 1; t < T; t++) {
-        for (int j = 0; j < N; j++) {
-            alpha[t][j] = 0.0;
-            for (int i = 0; i < N; i++) {
-                alpha[t][j] += alpha[t - 1][i] * hmm->A[i][j];
-            }
-            alpha[t][j] *= hmm->B[j][observations[t]];
-        }
-    }
-
-    // Calculate the total probability of the sequence
-    double p = 0.0;
-    for (int i = 0; i < N; i++) {
-        p += alpha[T - 1][i];
-    }
-
-    // Free allocated memory
-    for (int t = 0; t < T; t++) {
-        free(alpha[t]);
-    }
-    free(alpha);
-
-    return p;
-}
-
-
-double log_likelihood(const HMM *hmm, const int *observations, int T) {
-    int N = hmm->N;
-
-    // Allocate memory for the forward probabilities matrix and scaling factors
-    double **alpha = (double **)malloc(T * sizeof(double *));
-    double *scale_factors = (double *)malloc(T * sizeof(double));
-    for (int t = 0; t < T; t++) {
-        alpha[t] = (double *)malloc(N * sizeof(double));
-    }
-
-    // Initialize the first row of alpha with initial probabilities and observations
-    double scale = 0.0;
-    for (int i = 0; i < N; i++) {
-        alpha[0][i] = hmm->C[i] * hmm->B[i][observations[0]];
-        scale += alpha[0][i];
-    }
-    scale_factors[0] = scale;
-
-    // Scale the alpha values at time t=0
-    for (int i = 0; i < N; i++) {
-        alpha[0][i] /= scale;
-    }
-
-    // Calculate the scaled forward probabilities for the rest of the sequence
-    for (int t = 1; t < T; t++) {
-        scale = 0.0;
-        for (int j = 0; j < N; j++) {
-            alpha[t][j] = 0.0;
-            for (int i = 0; i < N; i++) {
-                alpha[t][j] += alpha[t - 1][i] * hmm->A[i][j];
-            }
-            alpha[t][j] *= hmm->B[j][observations[t]];
-            scale += alpha[t][j];
-        }
-        scale_factors[t] = scale;
-
-        // Scale the alpha values at time t
-        for (int j = 0; j < N; j++) {
-            alpha[t][j] /= scale;
-        }
-    }
-
-    // Calculate the log-likelihood
-    double log_likelihood = 0.0;
-    for (int t = 0; t < T; t++) {
-        log_likelihood += log(scale_factors[t]);
-    }
-
-    // Free allocated memory
-    for (int t = 0; t < T; t++) {
-        free(alpha[t]);
-    }
-    free(alpha);
-    free(scale_factors);
-
-    return log_likelihood;
-}
-
-double log_sum_exp(double a, double b) {
-    double max_val = (a > b) ? a : b;
-    return max_val + log(exp(a - max_val) + exp(b - max_val));
-}
-
-
-
-double log_likelihood_forward(double **alpha_log, int N, int T) {
-    // Calculate the log-likelihood
-    double log_likelihood = -INFINITY;
-    for (int j = 0; j < N; j++) {
-        log_likelihood = log_sum_exp(log_likelihood, alpha_log[j][T-1]);
-    }
-
-    return log_likelihood;
-}
-
-
-void forward(double **alpha, const HMM *hmm, const int *observations, int T)
+double **forward(const HMM *hmm, const int *observations, int T)
 {
     int N = hmm->N;
+
+    double **alpha = allocate_matrix(N, T, -1);
 
     // Initialize the first row of alpha with initial probabilities and observations
     for (int s = 0; s < N; s++) {
@@ -559,56 +431,85 @@ void forward(double **alpha, const HMM *hmm, const int *observations, int T)
         }
     }
 
+    return alpha;
 }
 
-void forward_log(double **alpha, const HMM *hmm, const int *observations, int T)
+double **forward_log(const HMM *hmm, const int *observations, int T)
 {
     int N = hmm->N;
+
+    double **alpha = allocate_matrix(N, T, -1);
 
     // Initialize the first row of alpha with initial probabilities and observations
     for (int i = 0; i < N; i++) {
         alpha[i][0] = log(hmm->C[i]) + log(hmm->B[i][observations[0]]);
     }
 
-    // Calculate the scaled forward probabilities for the rest of the sequence
+    // Calculate the forward probabilities for the rest of the sequence
     for (int t = 1; t < T; t++) {
         for (int j = 0; j < N; j++) {
             alpha[j][t] = -INFINITY;
             for (int i = 0; i < N; i++) {
                 alpha[j][t] = log_sum_exp(alpha[j][t], alpha[i][t-1]+log(hmm->A[i][j]));
-                // alpha[j][t] += alpha[i][t-1] * hmm->A[i][j];
             }
             alpha[j][t] += log(hmm->B[j][observations[t]]);
         }
 
     }
 
+    return alpha;
 }
 
-void backward_log(double **beta, const HMM *hmm, const int *observations, int T)
+
+double log_likelihood(const HMM *hmm, const int *observations, int T)
+{
+    // todo
+}
+
+
+double log_likelihood_forward(const HMM *hmm, const int *observations, int T)
+{
+    double **alpha_log = forward_log(hmm, observations, T);
+    // Calculate the log-likelihood
+    double log_likelihood = -INFINITY;
+    for (int j = 0; j < hmm->N; j++) {
+        log_likelihood = log_sum_exp(log_likelihood, alpha_log[j][T-1]);
+    }
+
+    return log_likelihood;
+}
+
+
+double **backward_log(const HMM *hmm, const int *observations, int T)
 {
     int N = hmm->N;
 
-    // Initialize the first row of alpha with initial probabilities and observations
+    double **beta = allocate_matrix(N, T, -1);
+
+    // Initialize the first row of beta with initial probabilities and observations
     for (int i = 0; i < N; i++) {
         beta[i][T-1] = 0.0;
     }
 
-    // Calculate the scaled forward probabilities for the rest of the sequence
+    // Calculate the backward probabilities for the rest of the sequence
     for (int t = T-2; t >= 0; t--) {
-        for (int j = 0; j < N; j++) {
-            beta[j][t] = -INFINITY;
-            for (int i = 0; i < N; i++) {
-                beta[j][t] = log_sum_exp(beta[j][t], log(hmm->A[i][j]) + log(hmm->B[i][observations[t+1]]) + beta[i][t+1]);
+        for (int s = 0; s < N; s++) {
+            beta[s][t] = -INFINITY;
+            for (int s0 = 0; s0 < N; s0++) {
+                beta[s][t] = log_sum_exp(beta[s][t], log(hmm->A[s][s0]) + log(hmm->B[s0][observations[t+1]]) + beta[s0][t+1]);
             }
         }
     }
+
+    return beta;
 }
 
 
-void backward(double **beta, const HMM *hmm, const int *observations, int T)
+double **backward(const HMM *hmm, const int *observations, int T)
 {
     int N = hmm->N;
+
+    double **beta = allocate_matrix(N, T, -1);
 
     // Initialize the first row of beta with initial probabilities and observations
     for (int s = 0; s < N; s++) {
@@ -625,27 +526,10 @@ void backward(double **beta, const HMM *hmm, const int *observations, int T)
         }
 
     }
+
+    return beta;
 }
 
-
-// void calculate_Xi(HMM *hmm, double ***Xi, double **alpha, double **beta, int *observations, int T)
-// {
-//     int N = hmm->N;
-    
-//     for (int t = 0; t < T-1; t++) {
-//         double PrO = 0.0; // Pr(observations | hmm)
-//         for (int u = 0; u < N; u++) {
-//             PrO += alpha[u][t]* beta[u][t];
-//         }
-
-//         for (int u = 0; u < N; u++) {
-//             for (int u0 = 0; u0 < N; u0++) {
-//                 Xi[u][u0][t] = alpha[u][t] * hmm->A[u][u0] * hmm->B[u0][observations[t+1]] * beta[u0][t+1];
-//                 Xi[u][u0][t] /= PrO;
-//             }
-//         }
-//     }
-// }
 
 void calculate_Xi(HMM *hmm, double ***Xi, double **alpha, double **beta, int *observations, int T)
 {
@@ -667,7 +551,6 @@ void calculate_Xi(HMM *hmm, double ***Xi, double **alpha, double **beta, int *ob
 }
 
 
-
 void calculate_gamma(HMM *hmm, double **gamma, double **alpha, double **beta, int *observations, int T)
 {   
     int N = hmm->N;
@@ -686,7 +569,7 @@ void calculate_gamma(HMM *hmm, double **gamma, double **alpha, double **beta, in
 }
 
 
-HMM* update_(HMM *hmm, double **alpha, double **beta, int *observations, int T) 
+HMM* HMM_update(HMM *hmm, double **alpha, double **beta, int *observations, int T) 
 {
     int N = hmm->N;
     int M = hmm->M;
@@ -695,28 +578,10 @@ HMM* update_(HMM *hmm, double **alpha, double **beta, int *observations, int T)
 
     HMM *new_hmm = HMM_create(N, M, "Updated model");
 
-    double ***Xi = malloc(N * sizeof(double**));
-    if (Xi == NULL) {
-        perror("Failed to allocate memory for Xi");
-    }
+    double ***Xi = allocate_3D_matrix(N, N, T-1, -1);
 
-    for (int i = 0; i < N; i++) {
-        Xi[i] = malloc(N * sizeof(double*));
-        if (Xi[i] == NULL) {
-            perror("Failed to allocate memory for Xi");
-        }
-        for (int j = 0; j < N; j++) {
-            Xi[i][j] = malloc((T-1) * sizeof(double));
-            if (Xi[i][j] == NULL) {
-                perror("Failed to allocate memory for Xi");
-            }
-        }
-    }
+    double **gamma = allocate_matrix(N, T, -1);
 
-    double **gamma = malloc(N * sizeof(double*));
-    if (gamma == NULL) {
-        perror("Failed to allocate memory for gamma");
-    }
 
     for (int i = 0; i < N; i++) {
         gamma[i] = malloc(T * sizeof(double));
@@ -740,7 +605,7 @@ HMM* update_(HMM *hmm, double **alpha, double **beta, int *observations, int T)
             for (int t = 0; t < T-1; t++) {
                 xi_sum  += Xi[s][s0][t];
             }
-            new_hmm->A[s][s0] = xi_sum/ gamma_sum;
+            new_hmm->A[s][s0] = (xi_sum + min_p_f)/ ( gamma_sum + min_p_f*N);
         }
 
         gamma_sum += gamma[s][T-1] + min_p_f*M;
@@ -752,13 +617,13 @@ HMM* update_(HMM *hmm, double **alpha, double **beta, int *observations, int T)
                     gamma_obs_sum  += gamma[s][t];
                 }
             }
-            new_hmm->B[s][o] = (gamma_obs_sum+min_p_f)  / gamma_sum ;
+            new_hmm->B[s][o] = (gamma_obs_sum + min_p_f)  / gamma_sum ;
         }
     }
 
     // update Initial state probability
     for (int s = 0; s < N; s++) {
-        new_hmm->C[s] = gamma[s][0];
+        new_hmm->C[s] = (gamma[s][0] + min_p_f) / (1 + N*min_p_f);
     }
 
     // Free Xi
@@ -780,7 +645,8 @@ HMM* update_(HMM *hmm, double **alpha, double **beta, int *observations, int T)
 
 
 // Utility function to choose a state or observation based on a probability distribution
-static int choose_from_distribution(double *probabilities, int size) {
+static int choose_from_distribution(double *probabilities, int size)
+{
     double r = (double)rand() / (double)RAND_MAX;
     double sum = 0.0;
     for (int i = 0; i < size; i++) {
@@ -793,8 +659,10 @@ static int choose_from_distribution(double *probabilities, int size) {
     return size - 1; 
 }
 
+
 // Function to generate a sequence of observations from a HMM model
-int* HMM_generate_sequence(const HMM *hmm, int T) {
+int* HMM_generate_sequence(const HMM *hmm, int T) 
+{
     if (hmm == NULL || T <= 0) {
         return NULL;
     }
@@ -846,34 +714,28 @@ HMM* HMM_learn(HMM *hypothesis_hmm, int T, int O[T], double epsilon, const char 
     HMM *model = HMM_create(N, M, "model");
     HMM_copy(model, hypothesis_hmm);
 
-    validate_hmm(model);
+    HMM_validate(model);
 
     // for loging
     int iteration = 0;
-    // char log_filename[256];
-    // char model_filename[256];
+    char log_filename[256];
+    char model_filename[256];
 
     // Construct the log filename
-    // sprintf(log_filename, "%s/log.txt", logs_folder);
+    sprintf(log_filename, "%s/log.txt", logs_folder);
 
-    // // Open the log file
-    // FILE *log_file = fopen(log_filename, "a");
-    // if (log_file == NULL) {
-    //     perror("Error opening log file");
-    //     return NULL;
-    // }
-
-    
+    // Open the log file
+    FILE *log_file = fopen(log_filename, "w");
+    if (log_file == NULL) {
+        perror("Error opening log file");
+        return NULL;
+    }
 
     double prob_priv, prob_original, prob_new;
-    prob_original = log_likelihood(model, O, T);
+    prob_original = log_likelihood_forward(model, O, T);
     prob_priv = prob_original;
     int converged = 0;
 
-    double **alpha = (double **)malloc(N * sizeof(double *));
-    for (int i = 0; i < N; i++) {
-        alpha[i] = (double *)malloc(T * sizeof(double));
-    }
 
     double **beta = (double **)malloc(N * sizeof(double *));
     for (int i = 0; i < N; i++) {
@@ -890,9 +752,9 @@ HMM* HMM_learn(HMM *hypothesis_hmm, int T, int O[T], double epsilon, const char 
 
         // Step 3 (b) : Forward
 
-        forward(alpha, model, O, T);
+        double **alpha = forward(model, O, T);
 
-        backward(beta, model, O, T);
+        double **beta = backward(model, O, T);
 
 
         // Step 3 (c) : Conditional Expectations
@@ -900,27 +762,33 @@ HMM* HMM_learn(HMM *hypothesis_hmm, int T, int O[T], double epsilon, const char 
         // Step 4: M-step
         // Step 4 (a) : update M
 
-        const HMM *new_hmm = update_(model, alpha, beta, O, T);
+        const HMM *new_hmm = HMM_update(model, alpha, beta, O, T);
 
+        prob_new = log_likelihood_forward(new_hmm, O, T);
 
-
-        prob_new = log_likelihood(new_hmm, O, T);
+        // Free allocated memory
+        for (int i = 0; i < N; i++) {
+            free(alpha[i]);
+            free(beta[i]);
+        }
+        free(alpha);
+        free(beta);
         
         HMM_copy(model, new_hmm); 
         HMM_destroy(new_hmm);
 
         // HMM_print(model);
-        validate_hmm(model);
-        // clock_t end_time = clock();
-        // double iteration_time = (double)(end_time - start_time) / CLOCKS_PER_SEC;
+        HMM_validate(model);
+        clock_t end_time = clock();
+        double iteration_time = (double)(end_time - start_time) / CLOCKS_PER_SEC;
 
         printf("\timprovement: %f\n", prob_new-prob_priv);
-        // fprintf(log_file, "Iteration: %d, Log Likelihood: %f, Improvement: %f, Time: %f\n",
-        //         iteration, prob_new, prob_new-prob_priv, iteration_time);
-        // fflush(log_file); 
+        fprintf(log_file, "Iteration: %d, Log Likelihood: %f, Improvement: %f, Time: %f\n",
+                iteration, prob_new, prob_new-prob_priv, iteration_time);
+        fflush(log_file); 
 
-        // sprintf(model_filename, "%s/models/model_%d", logs_folder, iteration);
-        // HMM_save(model, model_filename); 
+        sprintf(model_filename, "%s/models/model_%d", logs_folder, iteration);
+        HMM_save(model, model_filename); 
         if (prob_new <= prob_priv+epsilon) {
             converged = 1;
         }
@@ -931,30 +799,23 @@ HMM* HMM_learn(HMM *hypothesis_hmm, int T, int O[T], double epsilon, const char 
 
     }
     
-    // Free allocated memory
-    for (int i = 0; i < N; i++) {
-        free(alpha[i]);
-        free(beta[i]);
+
+    // Open the result file in append mode
+    FILE *result_fp = fopen(result_file, "a");
+    if (result_fp == NULL) {
+        perror("Error opening result file");
+        // Handle the error, possibly by cleaning up and returning
+        HMM_destroy(model);
+        fclose(log_file);
+        return NULL;
     }
-    free(alpha);
-    free(beta);
 
-    // // Open the result file in append mode
-    // FILE *result_fp = fopen(result_file, "a");
-    // if (result_fp == NULL) {
-    //     perror("Error opening result file");
-    //     // Handle the error, possibly by cleaning up and returning
-    //     HMM_destroy(model);
-    //     fclose(log_file);
-    //     return NULL;
-    // }
-
-    // // Append the results to the result file
-    // fprintf(result_fp, "%d, %f, %f", iteration, prob_new, prob_new - prob_original);
+    // Append the results to the result file
+    fprintf(result_fp, "%d, %f, %f", iteration, prob_new, prob_new - prob_original);
 
 
-    // // Close the result file
-    // fclose(result_fp);
+    // Close the result file
+    fclose(result_fp);
 
 
     // Step 6: Return the learned model
