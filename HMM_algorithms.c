@@ -5,6 +5,9 @@
 #include <time.h>
 #include <stdlib.h>
 #include "helpers.h"
+#include <sys/stat.h>
+#include <sys/types.h>
+
 
 double **forward(const HMM *hmm, const int *observations, int T)
 {
@@ -261,7 +264,6 @@ HMM* HMM_learn(HMM *hypothesis_hmm, int T, int O[T], double epsilon, const char 
     int M = hypothesis_hmm->M;
     HMM *model = HMM_create(N, M, "model");
     HMM_copy(model, hypothesis_hmm);
-
     HMM_validate(model);
 
     // for loging
@@ -279,6 +281,8 @@ HMM* HMM_learn(HMM *hypothesis_hmm, int T, int O[T], double epsilon, const char 
         return NULL;
     }
 
+    sprintf(model_filename, "%s/models", logs_folder);
+    mkdir(model_filename, 0777);
     double prob_priv, prob_original, prob_new;
     prob_original = log_likelihood_forward(model, O, T);
     prob_priv = prob_original;
@@ -291,7 +295,7 @@ HMM* HMM_learn(HMM *hypothesis_hmm, int T, int O[T], double epsilon, const char 
     }
 
     while (!converged)
-    {
+    {   
         clock_t start_time = clock();
 
         // Step 3: E-step
@@ -330,7 +334,7 @@ HMM* HMM_learn(HMM *hypothesis_hmm, int T, int O[T], double epsilon, const char 
         clock_t end_time = clock();
         double iteration_time = (double)(end_time - start_time) / CLOCKS_PER_SEC;
 
-        printf("\timprovement: %f\n", prob_new-prob_priv);
+        // printf("\timprovement: %f\n", prob_new-prob_priv);
         fprintf(log_file, "Iteration: %d, Log Likelihood: %f, Improvement: %f, Time: %f\n",
                 iteration, prob_new, prob_new-prob_priv, iteration_time);
         fflush(log_file); 
@@ -346,20 +350,18 @@ HMM* HMM_learn(HMM *hypothesis_hmm, int T, int O[T], double epsilon, const char 
 
 
     }
-    
+
+    fclose(log_file);
 
     // Open the result file in append mode
     FILE *result_fp = fopen(result_file, "a");
     if (result_fp == NULL) {
         perror("Error opening result file");
-        // Handle the error, possibly by cleaning up and returning
-        HMM_destroy(model);
-        fclose(log_file);
         return NULL;
     }
 
     // Append the results to the result file
-    fprintf(result_fp, "%d, %f, %f", iteration, prob_new, prob_new - prob_original);
+    fprintf(result_fp, "%d, %f, %f\n", iteration, prob_new, prob_new - prob_original);
 
 
     // Close the result file

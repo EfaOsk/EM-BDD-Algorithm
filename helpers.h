@@ -24,5 +24,8 @@ struct DoubleMatrix
 double** allocate_matrix(int rows, int cols, double initialValue);
 double*** allocate_3D_matrix(int depth, int rows, int cols, double initialValue);
 double log_sum_exp(double a, double b);
+void save_list(const int *list, int size, const char *filename);
+int **read_list(const char *filename);
+
 
 #endif

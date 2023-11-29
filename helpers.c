@@ -4,7 +4,7 @@
 #include <stdbool.h>
 #include "cudd.h"
 #include <math.h>
-
+#include <errno.h>
 
 /**
  * Print a dd summary
@@ -98,4 +98,56 @@ double*** allocate_3D_matrix(int depth, int rows, int cols, double initialValue)
 double log_sum_exp(double a, double b) {
     double max_val = (a > b) ? a : b;
     return max_val + log(exp(a - max_val) + exp(b - max_val));
+}
+
+
+// Function to save a list of integers to a file
+void save_list(const int *list, int size, const char *filename) {
+    FILE *file = fopen(filename, "a");
+    if (file == NULL) {
+        perror("Error opening file for writing");
+        return;
+    }
+
+    for (int i = 0; i < size; i++) {
+        fprintf(file, "%d", list[i]);
+        if (i < size - 1) {
+            fprintf(file, ", ");
+        }
+    }
+    fprintf(file, "\n");
+
+    fclose(file);
+}
+
+
+// Function to read a list of lists of integers from a file
+int **read_list(const char *filename) {
+    FILE *file = fopen(filename, "r");
+    if (file == NULL) {
+        perror("Error opening file for reading");
+        return NULL;
+    }
+
+    char line[1024];
+    int **lists = NULL;
+    int size = 0;
+
+    while (fgets(line, sizeof(line), file)) {
+        int *sublist = NULL;
+        int subsize = 0;
+        char *token = strtok(line, ", ");
+        while (token != NULL) {
+            sublist = realloc(sublist, (subsize + 1) * sizeof(int));
+            sublist[subsize++] = atoi(token);
+            token = strtok(NULL, ", ");
+        }
+
+        lists = realloc(lists, (size + 1) * sizeof(int *));
+        lists[size] = sublist;
+        size++;
+    }
+
+    fclose(file);
+    return lists;
 }
