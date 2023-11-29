@@ -627,45 +627,25 @@ double get_prob_AS1_encoded(const HMM *hmm, int i, int b){
  */
 double get_prob_AS_encoded(const HMM *hmm, int i, int j, int b){
 
+    double sum_denominator = 0.0;
+
+    for (int j0 = j; j0<= hmm->N; j0++){
+        sum_denominator += hmm->A[i][j0];
+    }
+
     if (b==0){ // false edge
         double sum_num = 0.0;
 
-        for (int i0 = i+1; i0 <= hmm->N - 1; i0++){
-            for (int j0 = 0; j0<= hmm->N -1; j0++){
-                sum_num += hmm->A[i0][j0];
-            }
-        }
-        for (int j0 = j+1; j0<= hmm->N -1; j0++){
+        for (int j0 = j+1; j0<= hmm->N; j0++){
             sum_num += hmm->A[i][j0];
         }
 
-        double sum_den = 0.0;
-
-        for (int i0 = i+1; i0 <= hmm->N - 1; i0++){
-            for (int j0 = 0; j0<= hmm->N -1; j0++){
-                sum_den += hmm->A[i0][j0];
-            }
-        }
-        for (int j0 = j; j0<= hmm->N -1; j0++){
-            sum_den += hmm->A[i][j0];
-        }
-
         // 
-        return sum_num / sum_den ;
+        return sum_num / sum_denominator ;
     } else { // true edge
-        double sum_den = 0.0;
-
-        for (int i0 = i+1; i0 <= hmm->N - 1; i0++){
-            for (int j0 = 0; j0<= hmm->N -1; j0++){
-                sum_den += hmm->A[i0][j0];
-            }
-        }
-        for (int j0 = j; j0<= hmm->N -1; j0++){
-            sum_den += hmm->A[i][j0];
-        }
 
         // a(i)(j) / 
-        return (hmm->A[i][j]) / sum_den ;
+        return (hmm->A[i][j]) / sum_denominator ;
     }
 
 }
@@ -705,24 +685,14 @@ double get_prob_AO_encoded(const HMM *hmm, int i, int j, int edgeType) {
     // Calculate sum_denominator which is common for both edgeType
     double sum_denominator = 0.0;
 
-    for (int i0 = i+1; i0 <= hmm->N - 1; i0++) {
-        for (int j0 = 0; j0 <= hmm->M - 1; j0++) {
-            sum_denominator += hmm->B[i0][j0];
-        }
-    }
-    for (int j0 = j; j0 <= hmm->M - 1; j0++) {
+    for (int j0 = j; j0 < hmm->M; j0++) {
         sum_denominator += hmm->B[i][j0];
     }
 
     if (edgeType == 0) { // false edge
         double sum_numerator = 0.0;
 
-        for (int i0 = i+1; i0 <= hmm->N - 1; i0++) {
-            for (int j0 = 0; j0 <= hmm->M - 1; j0++) {
-                sum_numerator += hmm->B[i0][j0];
-            }
-        }
-        for (int j0 = j+1; j0 <= hmm->M - 1; j0++) {
+        for (int j0 = j+1; j0 < hmm->M; j0++) {
             sum_numerator += hmm->B[i][j0];
         }
 
@@ -1004,12 +974,7 @@ double get_sigma(const HMM *hmm, int x, int i, int j) {
 
     double sum = 0.0;
     if (x == 0) {
-        for (int i0 = i+1; i0 < hmm->N; i0++){
-            for (int j0 = 0; j0< hmm->M; j0++){
-                sum += hmm->B[i0][j0];
-            }
-        }
-        for (int j0 = j; j0 < hmm->M; j0++){
+        for (int j0 = j; j0 < hmm->M; j0++) {
             sum += hmm->B[i][j0];
         }
     } else if (x == 1) {
@@ -1017,12 +982,7 @@ double get_sigma(const HMM *hmm, int x, int i, int j) {
             sum += hmm->C[j0];
         }
     } else if (x == 2) {
-        for (int i0 = i+1; i0 < hmm->N; i0++){
-            for (int j0 = 0; j0 < hmm->N; j0++){
-                sum += hmm->A[i0][j0];
-            }
-        }
-        for (int j0 = j; j0 < hmm->N; j0++){
+        for (int j0 = j; j0 < hmm->N; j0++) {
             sum += hmm->A[i][j0];
         }
     } else {
@@ -1225,9 +1185,10 @@ HMM* update(HMM *hmm, double ***eta) {
         sum = min_p_f*hmm->M;
         // ToDo: remove this quick fix, handles when obs is in alphabet, but not data to learn
         for (int o = 0; o < hmm->M; o++) {
-            if (eta[0][u][o]>=0){
-                sum += eta[0][u][o];
+            if (eta[0][u][o]<=0){
+                eta[0][u][o] = 0.0;
             }
+            sum += eta[0][u][o];
         }
         for (int o = 0; o < hmm->M; o++) {
             new_hmm->B[u][o] = (eta[0][u][o]+min_p_f) / sum;
@@ -1305,6 +1266,7 @@ HMM* learn(HMM *hypothesis_hmm, int T, int O[T], double epsilon, const char *log
 
     // Construct the log filename
     sprintf(log_filename, "%s/log.txt", logs_folder);
+    // sprintf(log_filename, "log.txt");
 
     // Open the log file
     FILE *log_file = fopen(log_filename, "a");
@@ -1433,20 +1395,22 @@ HMM* learn(HMM *hypothesis_hmm, int T, int O[T], double epsilon, const char *log
     fprintf(result_fp, "M : %d | ", M );
     fprintf(result_fp, "T : %d | ", T );
     fprintf(result_fp, "Encode: TRUE | ");
-    fprintf(result_fp, "DdManager vars: %d | ", Cudd_ReadSize(manager) ); /*Returns the number of BDD variables in existence*/
-    fprintf(result_fp, "DdManager nodes: %ld | ", Cudd_ReadNodeCount(manager) ); // countUniqueNodes(manager, pow(M,T), F_all) );/*Reports the number of live nodes in BDDs and ADDs*/
-    fprintf(result_fp, "DdManager reorderings: %d | ", Cudd_ReadReorderings(manager) ); /*Returns the number of times reordering has occurred*/
-    fprintf(result_fp, "DdManager memory: %ld \n", Cudd_ReadMemoryInUse(manager) ); /*Returns the memory in use by the manager measured in bytes*/
+    fprintf(result_fp, "DdManager vars: %d | ", Cudd_ReadSize(manager) ); // Returns the number of BDD variables in existence
+    fprintf(result_fp, "DdManager nodes: %ld | ", Cudd_ReadNodeCount(manager) ); // Reports the number of live nodes in BDDs and ADDs
+    fprintf(result_fp, "DdManager reorderings: %d | ", Cudd_ReadReorderings(manager) ); // Returns the number of times reordering has occurred
+    fprintf(result_fp, "DdManager memory: %ld \n", Cudd_ReadMemoryInUse(manager) ); // Returns the memory in use by the manager measured in bytes
     
     // Close the result file
     fclose(result_fp);
 
     char BDDfilename[52];sprintf(log_filename, "%s/log.txt", logs_folder);
-    sprintf(BDDfilename, "%s/BDD.dot", logs_folder); /*Write .dot filename to a string*/
+    sprintf(BDDfilename, "%s/BDD.dot", logs_folder); // Write .dot filename to a string
     FILE *outfile; // output file pointer for .dot file
     outfile = fopen(BDDfilename,"w");
     Cudd_DumpDot(manager, (1), F_obs, NULL, NULL, outfile);
     fclose(outfile);
+
+
     free(F_obs);
     FreeNodeData(Cudd_ReadSize(manager));
     free_lookup_table_variables(Cudd_ReadSize(manager));
