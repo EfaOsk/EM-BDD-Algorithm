@@ -1304,8 +1304,7 @@ HMM* learn(HMM *hypothesis_hmm, int T, int O[T], double epsilon, const char *log
     char model_filename[256];
 
     // Construct the log filename
-    // sprintf(log_filename, "%s/log.txt", logs_folder);
-    sprintf(log_filename, "tmp_log.txt");
+    sprintf(log_filename, "%s/log.txt", logs_folder);
 
     // Open the log file
     FILE *log_file = fopen(log_filename, "a");
@@ -1314,6 +1313,8 @@ HMM* learn(HMM *hypothesis_hmm, int T, int O[T], double epsilon, const char *log
         return NULL;
     }
 
+    sprintf(model_filename, "%s/models", logs_folder);
+    mkdir(model_filename, 0777);
     
 
     // Step 1 build (S)BDD
@@ -1383,8 +1384,8 @@ HMM* learn(HMM *hypothesis_hmm, int T, int O[T], double epsilon, const char *log
         HMM_copy(model, new_hmm); 
         HMM_destroy(new_hmm);
 
-        HMM_print(model);
-        validate_hmm(model);
+        // HMM_print(model);
+        HMM_validate(model);
 
         clock_t end_time = clock();
         double iteration_time = (double)(end_time - start_time) / CLOCKS_PER_SEC;
@@ -1396,51 +1397,55 @@ HMM* learn(HMM *hypothesis_hmm, int T, int O[T], double epsilon, const char *log
 
         sprintf(model_filename, "%s/models/model_%d", logs_folder, iteration);
         HMM_save(model, model_filename); 
-
         if (prob_new <= prob_priv+epsilon) {
             converged = 1;
         }
         prob_priv = prob_new;
         iteration++;
     }
+
+    fclose(log_file);
     
     // Open the result file in append mode
     FILE *result_fp = fopen(result_file, "a");
     if (result_fp == NULL) {
         perror("Error opening result file");
-        // Handle the error, possibly by cleaning up and returning
-        HMM_destroy(model);
-        fclose(log_file);
         return NULL;
     }
 
- 
-
     // Append the results to the result file
-    fprintf(result_fp, "%d, %f, %f", iteration, prob_new, prob_new - prob_original);
+    fprintf(result_fp, "%d, %f, %f\n", iteration, prob_new, prob_new - prob_original);
 
-    // Close the result file
-    fclose(result_fp);
+
+    // // Close the result file
+    // fclose(result_fp);
+
+
 
     // Close the log file
     fclose(log_file);
-
     
+    // Close the log file
+    fclose(log_file);
 
     // ToDo: remove (For Debuging):
-    printf("N : %d | ", N );
-    printf("M : %d | ", M );
-    printf("T : %d | ", T );
-    printf("Encode: TRUE | ");
-    printf("DdManager vars: %d | ", Cudd_ReadSize(manager) ); /*Returns the number of BDD variables in existence*/
-    printf("DdManager nodes: %ld | ", Cudd_ReadNodeCount(manager) ); // countUniqueNodes(manager, pow(M,T), F_all) );/*Reports the number of live nodes in BDDs and ADDs*/
-    printf("DdManager reorderings: %d | ", Cudd_ReadReorderings(manager) ); /*Returns the number of times reordering has occurred*/
-    printf("DdManager memory: %ld \n", Cudd_ReadMemoryInUse(manager) ); /*Returns the memory in use by the manager measured in bytes*/
-    char filename[30];
-    sprintf(filename, "./graphs/graph.dot"); /*Write .dot filename to a string*/
+    fprintf(result_fp, "N : %d | ", N );
+    fprintf(result_fp, "M : %d | ", M );
+    fprintf(result_fp, "T : %d | ", T );
+    fprintf(result_fp, "Encode: TRUE | ");
+    fprintf(result_fp, "DdManager vars: %d | ", Cudd_ReadSize(manager) ); /*Returns the number of BDD variables in existence*/
+    fprintf(result_fp, "DdManager nodes: %ld | ", Cudd_ReadNodeCount(manager) ); // countUniqueNodes(manager, pow(M,T), F_all) );/*Reports the number of live nodes in BDDs and ADDs*/
+    fprintf(result_fp, "DdManager reorderings: %d | ", Cudd_ReadReorderings(manager) ); /*Returns the number of times reordering has occurred*/
+    fprintf(result_fp, "DdManager memory: %ld \n", Cudd_ReadMemoryInUse(manager) ); /*Returns the memory in use by the manager measured in bytes*/
+    
+    // Close the result file
+    fclose(result_fp);
+
+    char BDDfilename[52];sprintf(log_filename, "%s/log.txt", logs_folder);
+    sprintf(BDDfilename, "%s/BDD.dot", logs_folder); /*Write .dot filename to a string*/
     FILE *outfile; // output file pointer for .dot file
-    outfile = fopen(filename,"w");
-    Cudd_DumpDot(manager, (N*(T-1) + 1 ), F_obs, NULL, NULL, outfile);
+    outfile = fopen(BDDfilename,"w");
+    Cudd_DumpDot(manager, (1), F_obs, NULL, NULL, outfile);
     fclose(outfile);
     free(F_obs);
     FreeNodeData(Cudd_ReadSize(manager));
