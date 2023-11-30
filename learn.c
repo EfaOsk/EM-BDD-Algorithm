@@ -1352,7 +1352,7 @@ HMM* learn(HMM *hypothesis_hmm, int T, int O[T], double epsilon, const char *log
         clock_t end_time = clock();
         double iteration_time = (double)(end_time - start_time) / CLOCKS_PER_SEC;
 
-        printf("\timprovement: %f\n", prob_new-prob_priv);
+        // printf("\timprovement: %f\n", prob_new-prob_priv);
         fprintf(log_file, "Iteration: %d, Log Likelihood: %f, Improvement: %f, Time: %f\n",
                 iteration, prob_new, prob_new-prob_priv, iteration_time);
         fflush(log_file); 
@@ -1381,14 +1381,7 @@ HMM* learn(HMM *hypothesis_hmm, int T, int O[T], double epsilon, const char *log
 
     // // Close the result file
     // fclose(result_fp);
-
-
-
-    // Close the log file
-    fclose(log_file);
     
-    // Close the log file
-    fclose(log_file);
 
     // ToDo: remove (For Debuging):
     fprintf(result_fp, "N : %d | ", N );
@@ -1403,7 +1396,7 @@ HMM* learn(HMM *hypothesis_hmm, int T, int O[T], double epsilon, const char *log
     // Close the result file
     fclose(result_fp);
 
-    char BDDfilename[52];sprintf(log_filename, "%s/log.txt", logs_folder);
+    char BDDfilename[526];
     sprintf(BDDfilename, "%s/BDD.dot", logs_folder); // Write .dot filename to a string
     FILE *outfile; // output file pointer for .dot file
     outfile = fopen(BDDfilename,"w");
