@@ -35,7 +35,7 @@ int **lookup_table_variables;
  * @return        The resulting F_O BDD.
  */
 
-DdNode **build_F_single_seq_O(DdManager *manager, int N, int M, int T, DdNode *AS1[N], DdNode *AS[N][T-1][N], DdNode *AO[N][T][M], int O[T]) {
+DdNode *build_F_single_seq_O(DdManager *manager, int N, int M, int T, DdNode *AS1[N], DdNode *AS[N][T-1][N], DdNode *AO[N][T][M], int O[T]) {
     // Create FO array
     DdNode *FO[T+1][N];
     // Base case: F_O^(L, i) = true for all i
@@ -94,25 +94,14 @@ DdNode **build_F_single_seq_O(DdManager *manager, int N, int M, int T, DdNode *A
 
 
 
-    DdNode **flattenedArray = (DdNode **)malloc(((T-1) * N  + 1) * sizeof(DdNode *));
-
-    // Flatten the 2D array into the 1D array.
-    flattenedArray[0]= FO_;
-    int count = 1;
-    for (int t = 1; t < T; t++) {
-        for (int n = 0; n < N; n++) {
-            flattenedArray[count] = FO[t][n]; // Cudd_BddToAdd(manager, FO[t][n]);
-            count++;
+    for (int t = 0; t < T+1; t++) {
+        for (int i = 0; i < N; i++) {
+            Cudd_RecursiveDeref(manager, FO[t][i]);
         }
     }
 
-    // for (int t = 0; t < T+1; t++) {
-    //     for (int i = 0; i < N; i++) {
-    //         Cudd_RecursiveDeref(manager, FO[t][i]);
-    //     }
-    // }
-    Cudd_RecursiveDeref(manager, FO_);
-    return flattenedArray;
+    // Cudd_RecursiveDeref(manager, FO_);
+    return FO_;
 
 }
 
@@ -512,10 +501,10 @@ DdNode **build_F_seq(DdManager *manager, int N, int M, int T, int O[T]) {
     // If not encode, set the initial varables
     // DdNode* C_A= build_C_A(manager, N, M, T, AS1, AS, AO);
     
-    DdNode** F_seq = malloc((N*(T-1) + 1 ) * sizeof(DdNode*));
-    DdNode** temp = build_F_single_seq_O(manager, N, M, T, AS1, AS, AO, O);
+    DdNode** F_seq = malloc((1 ) * sizeof(DdNode*));
+    DdNode* temp = build_F_single_seq_O(manager, N, M, T, AS1, AS, AO, O);
     // F_seq =  Cudd_BddToAdd(manager, Cudd_bddAnd(manager, C_A, temp)); // If not encode
-    F_seq =  temp;
+    F_seq[0] =  temp;
     // Cudd_Ref(F_seq);
     // Cudd_RecursiveDeref(manager, temp);
 
