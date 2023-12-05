@@ -464,7 +464,7 @@ void free_lookup_table_variables(int numVars) {
  *
  * @return An array of FO nodes for all possible sequences.
  */
-DdNode **build_F_seq(DdManager *manager, int N, int M, int T, int O[T]) {
+DdNode **build_F_seq(DdManager *manager, int N, int M, int NO, int T, int **O) {
     
     // Define the variables
     DdNode *AS1[N];             // AS1[u] := "S1 = u"
@@ -501,12 +501,12 @@ DdNode **build_F_seq(DdManager *manager, int N, int M, int T, int O[T]) {
     // If not encode, set the initial varables
     // DdNode* C_A= build_C_A(manager, N, M, T, AS1, AS, AO);
     
-    DdNode** F_seq = malloc((1 ) * sizeof(DdNode*));
-    DdNode* temp = build_F_single_seq_O(manager, N, M, T, AS1, AS, AO, O);
-    // F_seq =  Cudd_BddToAdd(manager, Cudd_bddAnd(manager, C_A, temp)); // If not encode
-    F_seq[0] =  temp;
-    // Cudd_Ref(F_seq);
-    // Cudd_RecursiveDeref(manager, temp);
+    DdNode** F_seq = malloc((NO) * sizeof(DdNode*));
+    for (int obs_i = 0; obs_i < NO; obs_i++) {
+        DdNode* temp = build_F_single_seq_O(manager, N, M, T, AS1, AS, AO, O[obs_i]);
+        F_seq[obs_i] = temp;
+    }
+
 
 
     for (int u = 0; u < N; u++) {
@@ -789,10 +789,10 @@ double Backward(DdManager* manager, DdNode* node, const HMM *hmm) {
  * @param hmm       A pointer to a Hidden Markov Model (HMM) or a similar probabilistic model.
  * @param num_roots The number of BDD roots in the 'F_all' array.
  */
-void CalculateForward(DdManager* manager, DdNode** F_seq, const HMM *hmm, int T) {
+void CalculateForward(DdManager* manager, DdNode** F_seq, const HMM *hmm, int T, int NO) {
     int numVars = Cudd_ReadSize(manager); // Cudd_ReadNodeCount(manager)+(hmm->N)*T+2;
  
-    for (int r = 0; r < 1; r++) {
+    for (int r = 0; r < NO; r++) {
         DdNode *targetNode = F_seq[r];
         int isNegated = Cudd_IsComplement(targetNode);
         if (isNegated) {
@@ -856,7 +856,7 @@ void CalculateForward(DdManager* manager, DdNode** F_seq, const HMM *hmm, int T)
 }
 
 
-void InitNodeData(DdManager* manager, DdNode** F_seq, const HMM *hmm, int T) {
+void InitNodeData(DdManager* manager, DdNode** F_seq, const HMM *hmm, int T, int NO) {
     int numVars = Cudd_ReadSize(manager); // Cudd_ReadNodeCount(manager)+(hmm->N)*T+2;
     nodeData = (NodeDataList **)malloc((numVars + 1) * sizeof(NodeDataList*));
 
@@ -875,7 +875,7 @@ void InitNodeData(DdManager* manager, DdNode** F_seq, const HMM *hmm, int T) {
     DdGen *gen;
 
 
-    for (int r = 0; r < 1; r++){
+    for (int r = 0; r < NO; r++){
         Cudd_ForeachNode(manager, F_seq[r], gen, node) {
             if (node == Cudd_ReadLogicZero(manager) || node == Cudd_Not(Cudd_ReadLogicZero(manager))) {
                 // Terminal node
@@ -1217,7 +1217,7 @@ HMM* update(HMM *hmm, double ***eta) {
  * @param logs_folder     Path to the folder where logs and model files will be saved.
  * @return HMM*           Pointer to the learned HMM structure.
  */
-HMM* learn(HMM *hypothesis_hmm, int T, int O[T], double epsilon, const char *logs_folder, const char *result_file)
+HMM* learn(HMM *hypothesis_hmm, int T, int NO, int **O, double epsilon, const char *logs_folder, const char *result_file)
 {
     /*
 
@@ -1277,29 +1277,31 @@ HMM* learn(HMM *hypothesis_hmm, int T, int O[T], double epsilon, const char *log
         (lookup_table_variables)[id] = (int *)malloc(4 * sizeof(int));
     }
 
-    DdNode **F_obs = build_F_seq(manager, N, M, T, O);
+    DdNode **F_obs = build_F_seq(manager, N, M, T, NO, O);
 
     // Step 2: initilize M (= some random HMM) 
         // ToDo currently input
 
 
     double prob_priv, prob_original, prob_new;
-    prob_original = log_likelihood_forward(model, O, T);
+    prob_original = log_likelihood_forward_multiple(model, O, NO, T);
     prob_priv = prob_original;
     int converged = 0;
+
+
     while (!converged)
     {
         clock_t start_time = clock();
 
         // Step 3: E-step
 
-        InitNodeData(manager, F_obs, model, T);
+        InitNodeData(manager, F_obs, model, T, NO);
     
         // Step 3 (a) : Backward
 
         // Step 3 (b) : Forward
     
-        CalculateForward(manager, F_obs, model, T);
+        CalculateForward(manager, F_obs, model, T, NO);
 
         // Step 3 (c) : Conditional Expectations
         double ***eta;
@@ -1329,7 +1331,7 @@ HMM* learn(HMM *hypothesis_hmm, int T, int O[T], double epsilon, const char *log
         }
         free(eta); // Finally, free the top level pointer
 
-        prob_new = log_likelihood_forward(new_hmm, O, T);
+        prob_new = log_likelihood_forward_multiple(new_hmm, O, NO, T);
         
         
         HMM_copy(model, new_hmm); 
@@ -1356,7 +1358,7 @@ HMM* learn(HMM *hypothesis_hmm, int T, int O[T], double epsilon, const char *log
     }
 
     fclose(log_file);
-    
+
     // Open the result file in append mode
     FILE *result_fp = fopen(result_file, "a");
     if (result_fp == NULL) {

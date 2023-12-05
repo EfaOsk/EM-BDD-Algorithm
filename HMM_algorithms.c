@@ -75,6 +75,18 @@ double log_likelihood_forward(const HMM *hmm, const int *observations, int T)
 }
 
 
+double log_likelihood_forward_multiple(const HMM *hmm, int **observations, int num_sequences, int T) {
+    double total_log_likelihood = 0;
+
+    for (int seq = 0; seq < num_sequences; seq++) {
+        double seq_log_likelihood = log_likelihood_forward(hmm, observations[seq], T);
+        total_log_likelihood += seq_log_likelihood;
+    }
+
+    return total_log_likelihood;
+}
+
+
 double **backward_log(const HMM *hmm, const int *observations, int T)
 {
     int N = hmm->N;

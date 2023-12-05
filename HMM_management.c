@@ -330,12 +330,12 @@ void HMM_validate(const HMM *hmm)
     // Check that all probabilities in matrices A and B are in [0, 1]
     for (int i = 0; i < N; i++) {
         for (int j = 0; j < N; j++) {
-            assert(hmm->A[i][j] >= 0.0-1e-6 && hmm->A[i][j] <= 1.0+1e-6); // Raise an error if not in [0, 1]
+            assert(hmm->A[i][j] >= 0.0 && hmm->A[i][j] <= 1.0); // Raise an error if not in [0, 1]
         }
         for (int j = 0; j < M; j++) {
-            assert(hmm->B[i][j] >= 0.0-1e-6 && hmm->B[i][j] <= 1.0+1e-6); // Raise an error if not in [0, 1]
+            assert(hmm->B[i][j] >= 0.0 && hmm->B[i][j] <= 1.0); // Raise an error if not in [0, 1]
         }
-        assert(hmm->C[i] >= 0.0-1e-6 && hmm->C[i] <= 1.0+1e-6); // Raise an error if not in [0, 1]
+        assert(hmm->C[i] >= 0.0 && hmm->C[i] <= 1.0); // Raise an error if not in [0, 1]
     }
 }
 
