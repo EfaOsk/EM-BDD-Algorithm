@@ -856,14 +856,13 @@ void CalculateForward(DdManager* manager, DdNode** F_seq, const HMM *hmm, int T,
 }
 
 
-void InitNodeData(DdManager* manager, DdNode** F_seq, const HMM *hmm, int T, int NO) {
-    int numVars = Cudd_ReadSize(manager); // Cudd_ReadNodeCount(manager)+(hmm->N)*T+2;
+void InitNodeData(DdManager* manager, DdNode** F_seq, int T, int NO) {
+    int numVars = Cudd_ReadSize(manager); 
     nodeData = (NodeDataList **)malloc((numVars + 1) * sizeof(NodeDataList*));
 
     if (nodeData == NULL) {
         // Handle memory allocation failure
         perror("Memory allocation failed");
-        Cudd_Quit(manager);
     }
     for (int i = 0; i < numVars + 1; i++) {
         nodeData[i] = (NodeDataList *)malloc(sizeof(NodeDataList));
@@ -931,6 +930,21 @@ void InitNodeData(DdManager* manager, DdNode** F_seq, const HMM *hmm, int T, int
     
 }
 
+
+void CleanNodeData(int numVars) {
+    for (int level = 0; level <= numVars; level++) {
+        NodeDataNode* node = nodeData[level]->head;
+        while (node != NULL) {
+            node->forward[0] = 0.0; // Inizilize forward with 0
+            node->forward[1] = 0.0; // Inizilize forward with 0
+            node->backward = -1.0; // Inizilize backward with 0
+            // next node
+            node = node->next;
+        }
+    }
+    nodeData[numVars]->head->backward = 1.0;
+}
+
 void FreeNodeData(int numVars) {
     // Clean up the allocated memory
     for (int i = 0; i < numVars + 1; i++) {
@@ -987,7 +1001,7 @@ void computeConditionalExpectations(DdManager *manager, const HMM *hmm, int T, d
     int N = hmm->N;
     int NX = hmm->M; //(hmm->N > hmm->M) ? hmm->N : hmm->M;
     int numVars = Cudd_ReadSize(manager);
-    // int T = 3;
+
     double e0, e1, temp;
     // *eta = (double***)malloc(3 * sizeof(double**));
     double ****etaX = (double****)malloc(3 * sizeof(double***)); // x is the leading dimension
@@ -1006,35 +1020,11 @@ void computeConditionalExpectations(DdManager *manager, const HMM *hmm, int T, d
     if (!D) { perror("Failed to allocate memory for D"); exit(EXIT_FAILURE); }
 
     for (int x = 0; x < 3; x++) {
-        etaX[x] = (double***)malloc(N * sizeof(double**));
+        etaX[x] = allocate_3D_matrix(N, T, NX, 0.0);
         if (!etaX[x]) { perror("Failed to allocate memory for etaX[x]"); exit(EXIT_FAILURE); }
 
-        gamma[x] = (double***)malloc(N * sizeof(double**));
+        gamma[x] = allocate_3D_matrix(N, T, NX, 0.0);
         if (!gamma[x]) { perror("Failed to allocate memory for gamma[x]"); exit(EXIT_FAILURE); }
-
-        for (int i = 0; i < N; i++) {
-            etaX[x][i] = (double**)malloc(T * sizeof(double*));
-            if (!etaX[x][i]) { perror("Failed to allocate memory for etaX[x][i]"); exit(EXIT_FAILURE); }
-
-
-            gamma[x][i] = (double**)malloc(T * sizeof(double*));
-            if (!gamma[x][i]) { perror("Failed to allocate memory for gamma[x][i]"); exit(EXIT_FAILURE); }
-
-            for (int t = 0; t < T; t++) {
-                etaX[x][i][t] = (double*)malloc(NX * sizeof(double));
-                if (!etaX[x][i][t]) { perror("Failed to allocate memory for etaX[x][i][t]"); exit(EXIT_FAILURE); }
-
-                gamma[x][i][t] = (double*)malloc((NX+1) * sizeof(double));
-                if (!gamma[x][i][t]) { perror("Failed to allocate memory for etaX[x][i][t]"); exit(EXIT_FAILURE); }
-                
-
-                for (int j = 0; j < NX; j++) {
-                    etaX[x][i][t][j] = 0.0;
-                    gamma[x][i][t][j] = 0.0;
-                }
-                gamma[x][i][t][NX] = 0.0;
-            }
-        }
     }
 
     for (int i = 0; i < numVars+1; i++) {
@@ -1132,6 +1122,7 @@ void computeConditionalExpectations(DdManager *manager, const HMM *hmm, int T, d
             if (x > 0) { NX = N; } 
             else { NX = hmm->M; }
             for (int j = 0; j < NX; j++) {
+                eta[x][i][j] = 0.0;
                 for (int t = 0; t < T; t++) {
                     eta[x][i][j]+= etaX[x][i][t][j];
                 }
@@ -1277,7 +1268,7 @@ HMM* learn(HMM *hypothesis_hmm, int T, int NO, int **O, double epsilon, const ch
         (lookup_table_variables)[id] = (int *)malloc(4 * sizeof(int));
     }
 
-    DdNode **F_obs = build_F_seq(manager, N, M, T, NO, O);
+    DdNode **F_obs = build_F_seq(manager, N, M, NO, T, O);
 
     // Step 2: initilize M (= some random HMM) 
         // ToDo currently input
@@ -1288,14 +1279,17 @@ HMM* learn(HMM *hypothesis_hmm, int T, int NO, int **O, double epsilon, const ch
     prob_priv = prob_original;
     int converged = 0;
 
+    int tmp = (N > M) ? N : M;
+    double ***eta = allocate_3D_matrix(3, N, tmp, 0.0);
 
+    InitNodeData(manager, F_obs, T, NO);
     while (!converged)
     {
         clock_t start_time = clock();
 
         // Step 3: E-step
-
-        InitNodeData(manager, F_obs, model, T, NO);
+        
+        CleanNodeData(Cudd_ReadSize(manager));
     
         // Step 3 (a) : Backward
 
@@ -1304,18 +1298,7 @@ HMM* learn(HMM *hypothesis_hmm, int T, int NO, int **O, double epsilon, const ch
         CalculateForward(manager, F_obs, model, T, NO);
 
         // Step 3 (c) : Conditional Expectations
-        double ***eta;
-        eta = (double***)malloc(3 * sizeof(double**));
-        for (int x = 0; x < 3; x++) {
-            eta[x] = (double**)malloc(N * sizeof(double*));
-            for (int i = 0; i < N; i++) {
-                // ToDo update this max(N, M)
-                eta[x][i] = (double*)malloc(M * sizeof(double));
-                for (int j = 0; j < M; j++) {
-                    eta[x][i][j] = 0.0;
-                }
-            }
-        }
+
         computeConditionalExpectations(manager, model, T, eta);
     
         // Step 4: M-step
@@ -1323,13 +1306,6 @@ HMM* learn(HMM *hypothesis_hmm, int T, int NO, int **O, double epsilon, const ch
 
         const HMM *new_hmm = update(model, eta);
 
-        for (int x = 0; x < 3; x++) {
-            for (int i = 0; i < N; i++) {
-                free(eta[x][i]); // Free the innermost arrays
-            }
-            free(eta[x]); // Free the second level pointers
-        }
-        free(eta); // Finally, free the top level pointer
 
         prob_new = log_likelihood_forward_multiple(new_hmm, O, NO, T);
         
@@ -1393,6 +1369,14 @@ HMM* learn(HMM *hypothesis_hmm, int T, int NO, int **O, double epsilon, const ch
     outfile = fopen(BDDfilename,"w");
     Cudd_DumpDot(manager, (1), F_obs, NULL, NULL, outfile);
     fclose(outfile);
+
+    for (int x = 0; x < 3; x++) {
+        for (int i = 0; i < N; i++) {
+            free(eta[x][i]); // Free the innermost arrays
+        }
+        free(eta[x]); // Free the second level pointers
+    }
+    free(eta); // Finally, free the top level pointer
 
 
     free(F_obs);
