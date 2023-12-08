@@ -106,7 +106,7 @@ int main(int argc, char *argv[]) {
     fprintf(metadata, "Hypothesis models: data/obs_seq_Example Model 0-10_T6/\n");
     fprintf(metadata, "Observations: random from original models\n");
     fprintf(metadata, "epsilon: %f\n", 0.001);
-    fprintf(metadata, "date: %d-%02d-%02d\n", 2023, 11, 29);
+    fprintf(metadata, "date: %d-%02d-%02d\n", 2023, 12, 07);
     fclose(metadata);
 
 
@@ -123,7 +123,7 @@ int main(int argc, char *argv[]) {
                 obs_seq[j] = HMM_generate_sequence(example_models[m], T);
             } 
             
-            for (int i = 0; i < 10; i++) {
+            for (int i = 0; i < 1; i++) {
                 sprintf(result_folder, "experiments/%s/%s_Obs%d_Hypo%d", experiment_name, example_models[m]->name, obs, i);
                 mkdir(result_folder, 0777);
                 sprintf(result_folder, "experiments/%s/%s_Obs%d_Hypo%d/logs", experiment_name, example_models[m]->name, obs, i);
