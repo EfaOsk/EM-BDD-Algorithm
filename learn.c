@@ -531,166 +531,41 @@ DdNode **build_F_seq(DdManager *manager, int N, int M, int NO, int T, int **O, i
 }
 
 
-/**
- * @brief Calculate the edge probability in a SBDD reprentation of a HMM.
- *
- * This function calculates the probability of transitioning to an encoded state in a SBDD 
- * reprentation of a HMM based on the provided parameters.
- *
- * @param hmm     A pointer to the HMM structure.
- * @param i       The current state index.
- * @param b       A flag indicating whether it's a true edge (b=0) or false edge (b=1).
- *
- * @return        The probability of transitioning to the encoded state.
- *
- * @note          The function uses the following formulas:
- *                - For a true edge (b=0):
- *                  \Prob{\langle c_i^{enc}, true\rangle} = \frac{\pi(i)}{\sum_{i'=i}^{N-1}\pi(i')}
- *                - For a false edge (b=1):
- *                  \Prob{\langle c_i^{enc}, false\rangle} = 
- *                      \frac{
- *                          \sum_{i'=i+1}^{N-1}\pi(i')
- *                      }{
- *                          \sum_{i'=i}^{N-1}\pi(i')
- *                      }
- */
-double get_prob_AS1_encoded(const HMM *hmm, int i, int b){
-
-    
-    if (b==0){ // false edge
-        double sum = 0.0;
-
-        for (int i0 = i; i0 < hmm->N; i0++){
-            sum += hmm->C[i0];
-        }
-        double sum_ = 0.0;
-
-        for (int i0 = i+1; i0 < hmm->N; i0++){
-            sum_ += hmm->C[i0];
-        }
-
-        // Sum_{i'=i+1}^{i=N-1} pi(i'/ Sum_{i'=i}^{i=N-1} pi(i') 
-        return sum_ / sum ;
-    } else { // true edge
-        double sum = 0.0;
-
-        for (int i0 = i; i0 < hmm->N; i0++){
-            sum += hmm->C[i0];
-        }
-
-        //pi(i)/ Sum_{i'=i}^{i=N-1} pi(i') 
-        return (hmm->C[i]) / sum ;
-    }
-
-}
-
-
-/**
- * @brief Calculate the edge probability in a SBDD reprentation of a HMM.
- *
- * This function calculates the probability of transitioning to an encoded state in a SBDD 
- * reprentation of a HMM based on the provided parameters.
- *
- * @param hmm     A pointer to the HMM structure.
- * @param i       The previus state index.
- * @param j       The current state index.
- * @param b       A flag indicating whether it's a true edge (b=0) or false edge (b=1).
- *
- * @return        The probability of transitioning to the encoded state.
- *
- * @note          The function uses the following formulas:
- *                - For a true edge (b=0):
- *                  \Prob{\langle d_{i,j}^{enc}, true\rangle} = 
- *                      \frac{
- *                          a(i)(j)
- *                      }{
- *                          (\sum_{i'=i+1}^{N-1}\sum_{j'=0}^{N-1}   a(i')(j'))+(\sum_{j'=j}^{N-1} a(i)(j'))
- *                      }
- *                - For a false edge (b=1):
- *                  \Prob{\langle d_i^{enc}, false\rangle} = 
- *                      \frac{
- *                          (\sum_{i'=i+1}^{N-1}\sum_{j'=0}^{N-1} a(i')(j'))+ (\sum_{j'=j+1}^{N-1} a(i)(j')
- *                      }{
- *                          \sum_{i'=i+1}^{N-1}\sum_{j'=0}^{N-1} a(i')(j'))+(\sum_{j'=j}^{N-1} a(i)(j'))
- *                      }
- */
-double get_prob_AS_encoded(const HMM *hmm, int i, int j, int b){
-
-    double sum_denominator = 0.0;
-
-    for (int j0 = j; j0<= hmm->N; j0++){
-        sum_denominator += hmm->A[i][j0];
-    }
-
-    if (b==0){ // false edge
-        double sum_num = 0.0;
-
-        for (int j0 = j+1; j0<= hmm->N; j0++){
-            sum_num += hmm->A[i][j0];
-        }
-
-        // 
-        return sum_num / sum_denominator ;
-    } else { // true edge
-
-        // a(i)(j) / 
-        return (hmm->A[i][j]) / sum_denominator ;
-    }
-
-}
-
-
-/**
- * @brief Calculate the edge probability in a SBDD reprentation of a HMM.
- *
- * This function calculates the probability of transitioning to an encoded state in a SBDD 
- * reprentation of a HMM based on the provided parameters.
- *
- * @param hmm     A pointer to the HMM structure.
- * @param i       The current state index.
- * @param j       The current observation index.
- * @param b       A flag indicating whether it's a true edge (b=0) or false edge (b=1).
- *
- * @return        The probability of transitioning to the encoded state.
- *
- * @note          The function uses the following formulas:
- *                - For a true edge (b=0):
- *                  \Prob{\langle e_{i,j}^{enc}, true\rangle} = 
- *                      \frac{
- * \                        b(i)(j)
- *                      }{
- *                          (\sum_{i'=i+1}^{N-1}\sum_{j'=0}^{M-1} b(i')(j'))+(\sum_{j'=j}^{M-1} b(i)(j'))
- *                      }
- *                - For a false edge (b=1):
- *                  \Prob{\langle e_i^{enc}, false\rangle} = 
- *                      \frac{
- *                          (\sum_{i'=i+1}^{N-1}\sum_{j'=0}^{M-1} b(i')(j'))+ (\sum_{j'=j+1}^{M-1} b(i)(j')
- *                      }{
- *                          \sum_{i'=i+1}^{N-1}\sum_{j'=0}^{M-1} b(i')(j'))+(\sum_{j'=j}^{M-1} b(i)(j'))
- *                      }
- */
-double get_prob_AO_encoded(const HMM *hmm, int i, int j, int edgeType) {
-
-    // Calculate sum_denominator which is common for both edgeType
-    double sum_denominator = 0.0;
-
-    for (int j0 = j; j0 < hmm->M; j0++) {
-        sum_denominator += hmm->B[i][j0];
-    }
-
-    if (edgeType == 0) { // false edge
-        double sum_numerator = 0.0;
-
-        for (int j0 = j+1; j0 < hmm->M; j0++) {
-            sum_numerator += hmm->B[i][j0];
-        }
-
-        return sum_numerator / sum_denominator;
-
-    } else { // true edge
-        return hmm->B[i][j] / sum_denominator;
+double get_theta(const HMM *hmm, int x, int i, int j) { 
+    if (x == 0) {
+        return hmm->B[i][j];
+    } else if (x == 1) {
+        return hmm->C[j];
+    } else if (x == 2) {
+        return hmm->A[i][j];
+    } else {
+        perror("Error: Invalid value of x");
+        return -1.0; 
     }
 }
+
+
+double get_sigma(const HMM *hmm, int x, int i, int j) { 
+    double sum = 0.0;
+    if (x == 0) {
+        for (int j0 = j; j0 < hmm->M; j0++) {
+            sum += hmm->B[i][j0];
+        }
+    } else if (x == 1) {
+        for (int j0 = j; j0 < hmm->N; j0++){
+            sum += hmm->C[j0];
+        }
+    } else if (x == 2) {
+        for (int j0 = j; j0 < hmm->N; j0++) {
+            sum += hmm->A[i][j0];
+        }
+    } else {
+        perror("Error: Invalid value of x");
+        return -1.0; 
+    }
+    return sum;
+}
+
 
 double get_prob_encoded(DdManager* manager, const HMM *hmm, DdNode *n, int b, int **lookup_table_variables) { 
     int id = Cudd_ReadPerm(manager, Cudd_NodeReadIndex(n));
@@ -699,14 +574,12 @@ double get_prob_encoded(DdManager* manager, const HMM *hmm, DdNode *n, int b, in
     // int t = lookup_table_variables[id][2];
     int j = lookup_table_variables[id][3];
 
-    if (x == 0) {
-        return get_prob_AO_encoded(hmm, i, j, b);
-    } else if (x == 1) {
-        return get_prob_AS1_encoded(hmm, j, b);
-    } else if (x == 2) {
-        return get_prob_AS_encoded(hmm, i, j, b);
+    if (b == 0) {
+        return get_sigma(hmm, x, i, j+1) / get_sigma(hmm, x, i, j);
+    } else if (b == 1) {
+        return get_theta(hmm, x, i, j) / get_sigma(hmm, x, i, j);
     } else {
-        perror("Error: Invalid value of x");
+        perror("Error: Invalid value of b");
         return -1.0; 
     }
 }
@@ -957,42 +830,6 @@ void FreeNodeData(int numVars) {
         free(nodeData[i]);
     }
     free(nodeData);
-}
-
-double get_theta(const HMM *hmm, int x, int i, int j) { 
-    if (x == 0) {
-        return hmm->B[i][j];
-    } else if (x == 1) {
-        return hmm->C[j];
-    } else if (x == 2) {
-        return hmm->A[i][j];
-    } else {
-        perror("Error: Invalid value of x");
-        return -1.0; 
-    }
-}
-
-
-double get_sigma(const HMM *hmm, int x, int i, int j) { 
-
-    double sum = 0.0;
-    if (x == 0) {
-        for (int j0 = j; j0 < hmm->M; j0++) {
-            sum += hmm->B[i][j0];
-        }
-    } else if (x == 1) {
-        for (int j0 = j; j0 < hmm->N; j0++){
-            sum += hmm->C[j0];
-        }
-    } else if (x == 2) {
-        for (int j0 = j; j0 < hmm->N; j0++) {
-            sum += hmm->A[i][j0];
-        }
-    } else {
-        perror("Error: Invalid value of x");
-        return -1.0; 
-    }
-    return sum;
 }
 
 
