@@ -12,8 +12,6 @@
 
 
 
-int **lookup_table_variables;
-
 /**
  * Builds the F_O BDD (Binary Decision Diagram) for a single sequence.
  * 
@@ -118,7 +116,7 @@ DdNode *build_F_single_seq_O(DdManager *manager, int N, int M, int T, DdNode *AS
  * @param AS      Array of BDDs representing AS.
  * @param AO      Array of BDDs representing AO.
  */
-void encode_variables(DdManager *manager, int N, int M, int T, DdNode *AS1[N], DdNode *AS[N][T-1][N], DdNode *AO[N][T][M]) {
+void encode_variables(DdManager *manager, int N, int M, int T, DdNode *AS1[N], DdNode *AS[N][T-1][N], DdNode *AO[N][T][M], int **lookup_table_variables) {
     // DdNode *AO_enc[N][T][M-1];
     // DdNode *AS1_enc[N - 1];
     // DdNode *AS_enc[N][T - 1][N-1];
@@ -448,7 +446,7 @@ DdNode *build_C_A(DdManager *manager, int N, int M, int T, DdNode *AS1[N], DdNod
 }
 
 
-void free_lookup_table_variables(int numVars) {
+void free_lookup_table_variables(int numVars, int **lookup_table_variables) {
     for (int id = 0; id < numVars; id++) {
         free(lookup_table_variables[id]);
     }
@@ -466,7 +464,7 @@ void free_lookup_table_variables(int numVars) {
  *
  * @return An array of FO nodes for all possible sequences.
  */
-DdNode **build_F_seq(DdManager *manager, int N, int M, int NO, int T, int **O) {
+DdNode **build_F_seq(DdManager *manager, int N, int M, int NO, int T, int **O, int **lookup_table_variables) {
     
     // Define the variables
     DdNode *AS1[N];             // AS1[u] := "S1 = u"
@@ -474,7 +472,7 @@ DdNode **build_F_seq(DdManager *manager, int N, int M, int NO, int T, int **O) {
     DdNode *AO[N][T][M];        // AO[u][t][o] := "O^u_t = o"
 
 
-    encode_variables(manager, N, M, T, AS1, AS, AO);
+    encode_variables(manager, N, M, T, AS1, AS, AO, lookup_table_variables);
 
     // If not encode, set the initial varables
         // for (int u = 0; u < N; u++){
@@ -694,7 +692,7 @@ double get_prob_AO_encoded(const HMM *hmm, int i, int j, int edgeType) {
     }
 }
 
-double get_prob_encoded(DdManager* manager, const HMM *hmm, DdNode *n, int b) { 
+double get_prob_encoded(DdManager* manager, const HMM *hmm, DdNode *n, int b, int **lookup_table_variables) { 
     int id = Cudd_ReadPerm(manager, Cudd_NodeReadIndex(n));
     int x = lookup_table_variables[id][0];
     int i = lookup_table_variables[id][1];
@@ -754,7 +752,7 @@ NodeDataNode* FindTargetNodeAtLevel(DdManager* manager, int targetLevel, DdNode*
  * @param M 
  * @return double
  */
-double Backward(DdManager* manager, DdNode* node, const HMM *hmm) {
+double Backward(DdManager* manager, DdNode* node, const HMM *hmm, int** lookup_table_variables) {
     NodeDataNode *targetNodeData = FindTargetNodeAtLevel(manager, -1, node);
     
     if (targetNodeData->backward >= 0) {
@@ -765,14 +763,14 @@ double Backward(DdManager* manager, DdNode* node, const HMM *hmm) {
     DdNode* high = Cudd_T(node);
     DdNode* low = Cudd_E(node);
     
-    double prob_high = get_prob_encoded(manager, hmm, node, 1) * Backward(manager, high, hmm);
+    double prob_high = get_prob_encoded(manager, hmm, node, 1, lookup_table_variables) * Backward(manager, high, hmm, lookup_table_variables);
     double prob_low;
 
     if (!Cudd_IsComplement(low)) {
-        prob_low = get_prob_encoded(manager, hmm, node, 0) * Backward(manager, low, hmm);
+        prob_low = get_prob_encoded(manager, hmm, node, 0, lookup_table_variables) * Backward(manager, low, hmm, lookup_table_variables);
     } else {
         // Adjusting for negative (complemented) edge
-        prob_low = get_prob_encoded(manager, hmm, node, 0) * (1.0 - Backward(manager, Cudd_Regular(low), hmm));
+        prob_low = get_prob_encoded(manager, hmm, node, 0, lookup_table_variables) * (1.0 - Backward(manager, Cudd_Regular(low), hmm, lookup_table_variables));
     }
     
     // Calculate the probability for the current node
@@ -791,7 +789,7 @@ double Backward(DdManager* manager, DdNode* node, const HMM *hmm) {
  * @param hmm       A pointer to a Hidden Markov Model (HMM) or a similar probabilistic model.
  * @param num_roots The number of BDD roots in the 'F_all' array.
  */
-void CalculateForward(DdManager* manager, DdNode** F_seq, const HMM *hmm, int T, int NO) {
+void CalculateForward(DdManager* manager, DdNode** F_seq, const HMM *hmm, int T, int NO, int** lookup_table_variables) {
     int numVars = Cudd_ReadSize(manager); // Cudd_ReadNodeCount(manager)+(hmm->N)*T+2;
  
     for (int r = 0; r < NO; r++) {
@@ -808,7 +806,7 @@ void CalculateForward(DdManager* manager, DdNode** F_seq, const HMM *hmm, int T,
             printf("ERROR!");
             return;
         }
-        double backwardVal = Backward(manager, targetNode, hmm);
+        double backwardVal = Backward(manager, targetNode, hmm, lookup_table_variables);
         if (!isNegated) {
             // even number of comple edges
             targetNodeData->forward[1] += 1 / (1 - backwardVal);
@@ -837,8 +835,8 @@ void CalculateForward(DdManager* manager, DdNode** F_seq, const HMM *hmm, int T,
             NodeDataNode* lowNode = FindTargetNodeAtLevel(manager, lowLevel, Cudd_Regular(lowChild));
             NodeDataNode* highNode = FindTargetNodeAtLevel(manager, highLevel, highChild);
 
-            double ProbLowEdge = get_prob_encoded(manager, hmm, targetNode->node, 0);
-            double ProbHighEdge = get_prob_encoded(manager, hmm, targetNode->node, 1);
+            double ProbLowEdge = get_prob_encoded(manager, hmm, targetNode->node, 0, lookup_table_variables);
+            double ProbHighEdge = get_prob_encoded(manager, hmm, targetNode->node, 1, lookup_table_variables);
 
             highNode->forward[0] += targetNode->forward[0]* ProbHighEdge; 
             highNode->forward[1] += targetNode->forward[1]* ProbHighEdge; 
@@ -998,7 +996,7 @@ double get_sigma(const HMM *hmm, int x, int i, int j) {
 }
 
 
-void computeConditionalExpectations(DdManager *manager, const HMM *hmm, int T, double ***eta,  double ***gamma,  double *D) {
+void computeConditionalExpectations(DdManager *manager, const HMM *hmm, int T, double ***eta,  double ***gamma,  double *D, int **lookup_table_variables) {
 
     int N = hmm->N;
     int NX = (hmm->N > hmm->M) ? hmm->N : hmm->M;
@@ -1041,8 +1039,8 @@ void computeConditionalExpectations(DdManager *manager, const HMM *hmm, int T, d
             }
             NodeDataNode *lowChildData = FindTargetNodeAtLevel(manager, lowLevel, Cudd_Regular(lowChild));
             NodeDataNode *highChildData = FindTargetNodeAtLevel(manager, highLevel, highChild);
-            double PrLow = get_prob_encoded(manager, hmm, node->node, 0);
-            double PrHigh = get_prob_encoded(manager, hmm, node->node, 1);
+            double PrLow = get_prob_encoded(manager, hmm, node->node, 0, lookup_table_variables);
+            double PrHigh = get_prob_encoded(manager, hmm, node->node, 1, lookup_table_variables);
 
             e1 = node->forward[0]*PrHigh*(1-highChildData->backward) + node->forward[1]*PrHigh*highChildData->backward;
             
@@ -1202,12 +1200,13 @@ HMM* learn(HMM *hypothesis_hmm, int T, int NO, int **O, double epsilon, const ch
     DdManager *manager = Cudd_Init(0,0,CUDD_UNIQUE_SLOTS,CUDD_CACHE_SLOTS, 0);  
     // Cudd_AutodynEnable(manager, CUDD_REORDER_SAME);
     
+    int **lookup_table_variables;
     lookup_table_variables = (int **)malloc((N*T*(M-1)+(N-1)+(N*(T-1)*(N-1))) * sizeof(int *));
     for (int id = 0; id <(N*T*(M-1)+(N-1)+(N*(T-1)*(N-1))); id++) {
         (lookup_table_variables)[id] = (int *)malloc(4 * sizeof(int));
     }
 
-    DdNode **F_obs = build_F_seq(manager, N, M, NO, T, O);
+    DdNode **F_obs = build_F_seq(manager, N, M, NO, T, O, lookup_table_variables);
 
     int numVars = Cudd_ReadSize(manager);
 
@@ -1239,11 +1238,11 @@ HMM* learn(HMM *hypothesis_hmm, int T, int NO, int **O, double epsilon, const ch
 
         // Step 3 (b) : Forward
     
-        CalculateForward(manager, F_obs, model, T, NO);
+        CalculateForward(manager, F_obs, model, T, NO, lookup_table_variables);
 
         // Step 3 (c) : Conditional Expectations
 
-        computeConditionalExpectations(manager, model, T, eta, gamma, D);
+        computeConditionalExpectations(manager, model, T, eta, gamma, D, lookup_table_variables);
     
         // Step 4: M-step
         // Step 4 (a) : update M
@@ -1327,7 +1326,7 @@ HMM* learn(HMM *hypothesis_hmm, int T, int NO, int **O, double epsilon, const ch
 
     free(F_obs);
     FreeNodeData(numVars);
-    free_lookup_table_variables(numVars);
+    free_lookup_table_variables(numVars, lookup_table_variables);
     Cudd_Quit(manager);
 
     // Step 6: Return the learned model
