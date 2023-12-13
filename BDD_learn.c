@@ -49,11 +49,11 @@ double get_sigma(const HMM *hmm, int x, int i, int j) {
 
 
 double get_prob_encoded(DdManager* manager, const HMM *hmm, DdNode *n, int b, int **lookup_table_variables) { 
-    int id = Cudd_ReadPerm(manager, Cudd_NodeReadIndex(n));
-    int x = lookup_table_variables[id][0];
-    int i = lookup_table_variables[id][1];
-    // int t = lookup_table_variables[id][2];
-    int j = lookup_table_variables[id][3];
+    int index = Cudd_NodeReadIndex(n);
+    int x = lookup_table_variables[index][0];
+    int i = lookup_table_variables[index][1];
+    // int t = lookup_table_variables[index][2];
+    int j = lookup_table_variables[index][3];
 
     if (b == 0) {
         return get_sigma(hmm, x, i, j+1) / get_sigma(hmm, x, i, j);
@@ -168,6 +168,7 @@ void CalculateForward(DdManager* manager, DdNode** F_seq, const HMM *hmm, int T,
 
 
     for (int level = 0 ; level < numVars; level++) {
+        // int index = Cudd_ReadInvPerm(manager, level);
         NodeDataNode* targetNode = nodeData[level]->head;
         while (targetNode != NULL) {
             // Find children:
@@ -336,10 +337,11 @@ void computeConditionalExpectations(DdManager *manager, const HMM *hmm, int T, d
 
     for (int level = 0; level < numVars; level++) {
         NodeDataNode* node = nodeData[level]->head;
-        int x = lookup_table_variables[level][0];
-        int i = lookup_table_variables[level][1];
-        int t = lookup_table_variables[level][2];
-        int j = lookup_table_variables[level][3];
+        int index = Cudd_ReadInvPerm(manager, level);
+        int x = lookup_table_variables[index][0];
+        int i = lookup_table_variables[index][1];
+        int t = lookup_table_variables[index][2];
+        int j = lookup_table_variables[index][3];
         while (node != NULL) {
             DdNode *lowChild = Cudd_E(node->node);
             DdNode *highChild = Cudd_T(node->node);
@@ -369,9 +371,14 @@ void computeConditionalExpectations(DdManager *manager, const HMM *hmm, int T, d
             gamma[x][i][j+1] += e0;
             gamma[x][i][j] -= e0 + e1;
 
-            D[level+1] += e0 + e1;
-            D[highLevel] -= e1;
-            D[lowLevel] -= e0;
+            
+            D[index+1] += e0 + e1;
+            int highIndex = Cudd_ReadInvPerm(manager, highLevel);
+            if (highIndex == -1) {  highIndex = numVars;    }
+            D[highIndex] -= e1;
+            int lowIndex = Cudd_ReadInvPerm(manager, lowLevel);
+            if (lowIndex == -1) {  lowIndex = numVars;    }
+            D[lowIndex] -= e0;
 
             // next node
             node = node->next;
@@ -379,12 +386,12 @@ void computeConditionalExpectations(DdManager *manager, const HMM *hmm, int T, d
     }
 
     temp = 0;
-    for (int level = 0; level < numVars; level++) {
-        int x = lookup_table_variables[level][0];
-        int i = lookup_table_variables[level][1];
-        int t = lookup_table_variables[level][2];
-        int j = lookup_table_variables[level][3];
-        temp += D[level];
+    for (int index = 0; index < numVars; index++) {
+        int x = lookup_table_variables[index][0];
+        int i = lookup_table_variables[index][1];
+        int t = lookup_table_variables[index][2];
+        int j = lookup_table_variables[index][3];
+        temp += D[index];
         if (j == 0) {
             gamma[x][i][0] = temp;
         }
@@ -512,7 +519,7 @@ HMM* BDD_learn(HMM *hypothesis_hmm, int T, int NO, int **O, double epsilon, cons
 
     // Step 1 build (S)BDD
     DdManager *manager = Cudd_Init(0,0,CUDD_UNIQUE_SLOTS,CUDD_CACHE_SLOTS, 0);  
-    // Cudd_AutodynEnable(manager, CUDD_REORDER_SAME);
+    Cudd_AutodynEnable(manager, CUDD_REORDER_SAME);
     
     int **lookup_table_variables;
     lookup_table_variables = (int **)malloc((N*T*(M-1)+(N-1)+(N*(T-1)*(N-1))) * sizeof(int *));
