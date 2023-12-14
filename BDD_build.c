@@ -315,23 +315,24 @@ DdNode *build_C_A(DdManager *manager, int N, int M, int T, DdNode *AS1[N], DdNod
     DdNode* L_A = Cudd_Not(Cudd_ReadLogicZero(manager));
     Cudd_Ref(L_A);
     
-    for (int t = 0; t < T; t++){
-        DdNode* disjunction = Cudd_ReadLogicZero(manager);
-        Cudd_Ref(disjunction);
+    for (int t = 0; t < T; t++) {
         for (int u = 0; u < N; u++){
+            DdNode* disjunction = Cudd_ReadLogicZero(manager);
+            Cudd_Ref(disjunction);
             for (int o = 0; o < M; o++){
                 DdNode* temp = Cudd_bddOr(manager, AO[u][t][o], disjunction);
                 Cudd_Ref(temp);
                 Cudd_RecursiveDeref(manager, disjunction);
                 disjunction = temp;
             }
+            DdNode* temp = Cudd_bddAnd(manager, disjunction, L_A);
+            Cudd_Ref(temp);
+            Cudd_RecursiveDeref(manager, disjunction);
+            Cudd_RecursiveDeref(manager, L_A);
+            L_A= temp;
         }
-        DdNode* temp = Cudd_bddAnd(manager, disjunction, L_A);
-        Cudd_Ref(temp);
-        Cudd_RecursiveDeref(manager, disjunction);
-        Cudd_RecursiveDeref(manager, L_A);
-        L_A= temp;
     }
+
     
     DdNode* disjunction = Cudd_ReadLogicZero(manager);
     Cudd_Ref(disjunction);
@@ -348,21 +349,21 @@ DdNode *build_C_A(DdManager *manager, int N, int M, int T, DdNode *AS1[N], DdNod
     L_A= temp;
     
     for (int t = 0; t < T - 1; t++){
-        DdNode* disjunction = Cudd_ReadLogicZero(manager);
-        Cudd_Ref(disjunction);
         for (int u = 0; u < N; u++){
+            DdNode* disjunction = Cudd_ReadLogicZero(manager);
+            Cudd_Ref(disjunction);
             for (int v = 0; v < N; v++){
                 DdNode* temp = Cudd_bddOr(manager, AS[u][t][v], disjunction);
                 Cudd_Ref(temp);
                 Cudd_RecursiveDeref(manager, disjunction);
                 disjunction = temp;
             }
+            DdNode* temp = Cudd_bddAnd(manager, disjunction, L_A);
+            Cudd_Ref(temp);
+            Cudd_RecursiveDeref(manager, disjunction);
+            Cudd_RecursiveDeref(manager, L_A);
+            L_A= temp;
         }
-        DdNode* temp = Cudd_bddAnd(manager, disjunction, L_A);
-        Cudd_Ref(temp);
-        Cudd_RecursiveDeref(manager, disjunction);
-        Cudd_RecursiveDeref(manager, L_A);
-        L_A= temp;
     }
 
     DdNode* M_A = Cudd_Not(Cudd_ReadLogicZero(manager));
@@ -370,20 +371,18 @@ DdNode *build_C_A(DdManager *manager, int N, int M, int T, DdNode *AS1[N], DdNod
     for (int t = 0; t < T; t++){
         for (int u = 0; u < N; u++){
             for (int o = 0; o < M; o++){
-                for (int u0 = 0; u0 < N; u0++){
-                    for (int o0 = 0; o0 < M; o0++){
-                        if ( !( (o0 == o) && (u0 == u) ) ) {
-                            DdNode* temp0 = Cudd_bddAnd(manager, AO[u][t][o], AO[u0][t][o0]);
-                            Cudd_Ref(temp0);
-                            DdNode* temp1 = Cudd_Not(temp0);
-                            Cudd_Ref(temp1);
-                            Cudd_RecursiveDeref(manager, temp0);
-                            DdNode* temp2 = Cudd_bddAnd(manager, temp1, M_A);
-                            Cudd_Ref(temp2);
-                            Cudd_RecursiveDeref(manager, M_A);
-                            Cudd_RecursiveDeref(manager, temp1);
-                            M_A = temp2;
-                        }
+                for (int o0 = 0; o0 < M; o0++){
+                    if ( !(o0 == o)) {
+                        DdNode* temp0 = Cudd_bddAnd(manager, AO[u][t][o], AO[u][t][o0]);
+                        Cudd_Ref(temp0);
+                        DdNode* temp1 = Cudd_Not(temp0);
+                        Cudd_Ref(temp1);
+                        Cudd_RecursiveDeref(manager, temp0);
+                        DdNode* temp2 = Cudd_bddAnd(manager, temp1, M_A);
+                        Cudd_Ref(temp2);
+                        Cudd_RecursiveDeref(manager, M_A);
+                        Cudd_RecursiveDeref(manager, temp1);
+                        M_A = temp2;
                     }
                 }
             }
@@ -412,20 +411,18 @@ DdNode *build_C_A(DdManager *manager, int N, int M, int T, DdNode *AS1[N], DdNod
     for (int t = 0; t < T-1; t++){
         for (int u = 0; u < N; u++){
             for (int v = 0; v < N; v++){
-                for (int u0 = 0; u0 < N; u0++){
-                    for (int v0 = 0; v0 < N; v0++){
-                        if ( !( (u == u0) && (v == v0) ) ) {
-                            DdNode* temp0 = Cudd_bddAnd(manager, AS[u][t][v], AS[u0][t][v0]);
-                            Cudd_Ref(temp0);
-                            DdNode* temp1 = Cudd_Not(temp0);
-                            Cudd_Ref(temp1);
-                            Cudd_RecursiveDeref(manager, temp0);
-                            DdNode* temp2 = Cudd_bddAnd(manager, temp1, M_A);
-                            Cudd_Ref(temp2);
-                            Cudd_RecursiveDeref(manager, M_A);
-                            Cudd_RecursiveDeref(manager, temp1);
-                            M_A = temp2;
-                        }
+                for (int v0 = 0; v0 < N; v0++){
+                    if ( !(v == v0)) {
+                        DdNode* temp0 = Cudd_bddAnd(manager, AS[u][t][v], AS[u][t][v0]);
+                        Cudd_Ref(temp0);
+                        DdNode* temp1 = Cudd_Not(temp0);
+                        Cudd_Ref(temp1);
+                        Cudd_RecursiveDeref(manager, temp0);
+                        DdNode* temp2 = Cudd_bddAnd(manager, temp1, M_A);
+                        Cudd_Ref(temp2);
+                        Cudd_RecursiveDeref(manager, M_A);
+                        Cudd_RecursiveDeref(manager, temp1);
+                        M_A = temp2;
                     }
                 }
             }
@@ -469,21 +466,21 @@ DdNode **build_F_seq(DdManager *manager, int N, int M, int NO, int T, int **O, i
         //     for (int t = 0; t < T; t++){
         //         for (int o = 0; o < M; o++){
         //             AO[u][t][o] = Cudd_bddNewVar(manager);
-        //             printf("O^%d_%d = %d\n", u, t, o);
+        //             // printf("O^%d_%d = %d\n", u, t, o);
         //         }
         //     }
         // }
 
         // for (int u = 0; u < N; u++){
         //     AS1[u] = Cudd_bddNewVar(manager);
-        //     printf("S_0 = %d\n", u);
+        //     // printf("S_0 = %d\n", u);
         // }
 
         // for (int u = 0; u < N; u++){
         //     for (int t = 0; t < T-1; t++){
         //         for (int v = 0; v < N; v++){
         //             AS[u][t][v] = Cudd_bddNewVar(manager);
-        //             printf("S^%d_%d = %d\n", u, t+1, v);
+        //             // printf("S^%d_%d = %d\n", u, t+1, v);
         //         }
         //     }
         // }
