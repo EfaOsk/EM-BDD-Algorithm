@@ -251,13 +251,107 @@ HMM* HMM_update(HMM *hmm, double **alpha, double **beta, int *observations, int 
 }
 
 
+HMM* HMM_update_multiple(HMM *hmm, int **observations, int num_sequences, int T) {
+    int N = hmm->N;
+    int M = hmm->M;
+    double min_p_f = 0.00001;
+
+    HMM *new_hmm = HMM_create(N, M, "Updated model");
+
+    double ***Xi = allocate_3D_matrix(N, N, T-1, 0);
+    double **gamma = allocate_matrix(N, T, 0);
+
+
+    // accumulated Xi and gamma over all sequences
+    for (int seq = 0; seq < num_sequences; seq++) {
+        double **alpha = forward(hmm, observations[seq], T);
+        double **beta = backward(hmm, observations[seq], T);
+        double ***seq_Xi = allocate_3D_matrix(N, N, T-1, 0);
+        double **seq_gamma = allocate_matrix(N, T, 0);
+
+        calculate_Xi(hmm, seq_Xi, alpha, beta, observations[seq], T);
+        calculate_gamma(hmm, seq_gamma, alpha, beta, observations[seq], T);
+
+        // accumulated Xi and gamma values
+        for (int i = 0; i < N; i++) {
+            for (int t = 0; t < T; t++) {
+                gamma[i][t] += seq_gamma[i][t];
+                for (int j = 0; j < N; j++) {
+                    if (t < T - 1) {
+                        Xi[i][j][t] += seq_Xi[i][j][t];
+                    }
+                }
+            }
+        }
+
+        // Free memory for the sequence
+        free_matrix(alpha, N);
+        free_matrix(beta, N);
+        free_3D_matrix(seq_Xi, N, N);
+        free_matrix(seq_gamma, N);
+    }
+
+
+    for (int s = 0; s < N; s++) {
+        double gamma_sum = 0.0; // Pr(observations | hmm)
+        for (int t = 0; t < T-1; t++) {
+            gamma_sum += gamma[s][t];
+        }
+
+        // update Transition probability
+        for (int s0 = 0; s0 < N; s0++) {
+            double xi_sum  = 0.0;
+            for (int t = 0; t < T-1; t++) {
+                xi_sum  += Xi[s][s0][t];
+            }
+            new_hmm->A[s][s0] = (xi_sum + min_p_f)/ ( gamma_sum + min_p_f*N);
+        }
+
+        gamma_sum += gamma[s][T-1] + min_p_f*M;
+        // update Observation probability
+        for (int s = 0; s < N; s++) {
+            double gamma_sum = 0.0;
+            double *gamma_obs_sum = calloc(M, sizeof(double)); // Initialize to 0 for all observation symbols
+            
+            // Accumulate gamma over all sequences and time steps for state s
+            for (int seq = 0; seq < num_sequences; seq++) {
+                for (int t = 0; t < T; t++) {
+                    gamma_sum += gamma[s][t];
+                    gamma_obs_sum[observations[seq][t]] += gamma[s][t];
+                }
+            }
+            
+            gamma_sum += min_p_f * M; // Prevent division by zero
+            // Update observation probabilities
+            for (int o = 0; o < M; o++) {
+                new_hmm->B[s][o] = (gamma_obs_sum[o] + min_p_f) / gamma_sum;
+            }
+            
+            free(gamma_obs_sum); // Don't forget to free the allocated memory
+        }
+
+    }
+
+    // update Initial state probability
+    for (int s = 0; s < N; s++) {
+        new_hmm->C[s] = (gamma[s][0] + min_p_f) / (1 + N*min_p_f);
+    }
+
+
+
+    // Free Xi and gamma
+    free_3D_matrix(Xi, N, N);
+    free_matrix(gamma, N);
+
+    return new_hmm;
+}
+
 
 HMM* HMM_learn(HMM *hypothesis_hmm, int T, int O[T], double epsilon, const char *logs_folder, const char *result_file)
 {
     /*
 
-    EM on BDD
-
+    EM
         (repeat steps 3-5 until converged)
 
         (3) E-step
@@ -300,11 +394,6 @@ HMM* HMM_learn(HMM *hypothesis_hmm, int T, int O[T], double epsilon, const char 
     prob_priv = prob_original;
     int converged = 0;
 
-
-    double **beta = (double **)malloc(N * sizeof(double *));
-    for (int i = 0; i < N; i++) {
-        beta[i] = (double *)malloc(T * sizeof(double));
-    }
 
     while (!converged)
     {   
@@ -362,7 +451,6 @@ HMM* HMM_learn(HMM *hypothesis_hmm, int T, int O[T], double epsilon, const char 
 
 
     }
-
     fclose(log_file);
 
     // Open the result file in append mode
@@ -382,5 +470,91 @@ HMM* HMM_learn(HMM *hypothesis_hmm, int T, int O[T], double epsilon, const char 
 
     // Step 6: Return the learned model
     
+    return model;
+}
+
+
+HMM* HMM_learn_multiple(HMM *hypothesis_hmm, int num_sequences, int **observations, int T, double epsilon, const char *logs_folder, const char *result_file) {
+    int N = hypothesis_hmm->N;
+    int M = hypothesis_hmm->M;
+    HMM *model = HMM_create(N, M, "model");
+    HMM_copy(model, hypothesis_hmm);
+    HMM_validate(model);
+
+    // For logging
+    int iteration = 0;
+    char log_filename[256];
+    char model_filename[256];
+
+    // Construct the log filename
+    // sprintf(log_filename, "%s/log.txt", logs_folder);
+    sprintf(log_filename, "log.txt");
+
+    // Open the log file
+    FILE *log_file = fopen(log_filename, "w");
+    if (log_file == NULL) {
+        perror("Error opening log file");
+        return NULL;
+    }
+
+    sprintf(model_filename, "%s/models", logs_folder);
+    mkdir(model_filename, 0777);
+    double prob_priv, prob_original, prob_new;
+    prob_original = log_likelihood_forward_multiple(model, observations, num_sequences, T);
+    prob_priv = prob_original;
+    
+    int converged = 0;
+    while (!converged) {   
+        clock_t start_time = clock();
+
+        // E-step: Calculate forward and backward probabilities
+        double **alpha = allocate_matrix(N, T, 0);
+        double **beta = allocate_matrix(N, T, 0);
+        
+        // M-step: Update HMM parameters using forward and backward probabilities
+        HMM *new_hmm = HMM_update_multiple(model, observations, num_sequences, T);
+
+        prob_new = log_likelihood_forward_multiple(new_hmm, observations, num_sequences, T);
+
+        // Free allocated memory
+        free_matrix(alpha, N);
+        free_matrix(beta, N);
+        
+        // Check for convergence
+        if (prob_new <= prob_priv+epsilon) {
+            converged = 1;
+        } else {
+            // Copy new model parameters to our working model
+            HMM_copy(model, new_hmm);
+            prob_priv = prob_new;
+        }
+
+        HMM_destroy(new_hmm);
+
+        clock_t end_time = clock();
+        double iteration_time = (double)(end_time - start_time) / CLOCKS_PER_SEC;
+
+        // Log the current iteration
+        fprintf(log_file, "Iteration: %d, Log Likelihood: %f, Improvement: %f, Time: %f\n",
+                iteration, prob_new, prob_new - prob_priv, iteration_time);
+        fflush(log_file);
+
+        sprintf(model_filename, "%s/models/model_%d", logs_folder, iteration);
+        HMM_save(model, model_filename);
+
+        iteration++;
+    }
+    fclose(log_file);
+
+    // Append the results to the result file
+    FILE *result_fp = fopen(result_file, "a");
+    if (result_fp == NULL) {
+        perror("Error opening result file");
+        return NULL;
+    }
+    fprintf(result_fp, "%d, %f, %f\n", iteration, prob_new, prob_new - prob_priv);
+    fclose(result_fp);
+
+    // Return the learned model
     return model;
 }

@@ -95,6 +95,35 @@ double*** allocate_3D_matrix(int depth, int rows, int cols, double initialValue)
 }
 
 
+void free_matrix(double **matrix, int rows) {
+    if (matrix != NULL) {
+        for (int i = 0; i < rows; i++) {
+            if (matrix[i] != NULL) {
+                free(matrix[i]); 
+            }
+        }
+        free(matrix);
+    }
+}
+
+
+void free_3D_matrix(double ***matrix, int rows, int cols) {
+    if (matrix != NULL) {
+        for (int i = 0; i < rows; i++) {
+            if (matrix[i] != NULL) {
+                for (int j = 0; j < cols; j++) {
+                    if (matrix[i][j] != NULL) {
+                        free(matrix[i][j]);
+                    }
+                }
+                free(matrix[i]);
+            }
+        }
+        free(matrix);
+    }
+}
+
+
 double log_sum_exp(double a, double b) {
     double max_val = (a > b) ? a : b;
     return max_val + log(exp(a - max_val) + exp(b - max_val));
