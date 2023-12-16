@@ -320,8 +320,7 @@ HMM* HMM_update_multiple(HMM *hmm, int **observations, int num_sequences, int T)
                     gamma_obs_sum[observations[seq][t]] += gamma[s][t];
                 }
             }
-            
-            gamma_sum += min_p_f * M; // Prevent division by zero
+
             // Update observation probabilities
             for (int o = 0; o < M; o++) {
                 new_hmm->B[s][o] = (gamma_obs_sum[o] + min_p_f) / gamma_sum;
@@ -334,7 +333,7 @@ HMM* HMM_update_multiple(HMM *hmm, int **observations, int num_sequences, int T)
 
     // update Initial state probability
     for (int s = 0; s < N; s++) {
-        new_hmm->C[s] = (gamma[s][0] + min_p_f) / (1 + N*min_p_f);
+        new_hmm->C[s] = (gamma[s][0] + min_p_f) / (num_sequences + N*min_p_f);
     }
 
 
@@ -487,8 +486,8 @@ HMM* HMM_learn_multiple(HMM *hypothesis_hmm, int num_sequences, int **observatio
     char model_filename[256];
 
     // Construct the log filename
-    // sprintf(log_filename, "%s/log.txt", logs_folder);
-    sprintf(log_filename, "log.txt");
+    sprintf(log_filename, "%s/log.txt", logs_folder);
+    // sprintf(log_filename, "log.txt");
 
     // Open the log file
     FILE *log_file = fopen(log_filename, "w");
@@ -506,42 +505,32 @@ HMM* HMM_learn_multiple(HMM *hypothesis_hmm, int num_sequences, int **observatio
     int converged = 0;
     while (!converged) {   
         clock_t start_time = clock();
-
-        // E-step: Calculate forward and backward probabilities
-        double **alpha = allocate_matrix(N, T, 0);
-        double **beta = allocate_matrix(N, T, 0);
         
         // M-step: Update HMM parameters using forward and backward probabilities
         HMM *new_hmm = HMM_update_multiple(model, observations, num_sequences, T);
 
         prob_new = log_likelihood_forward_multiple(new_hmm, observations, num_sequences, T);
 
-        // Free allocated memory
-        free_matrix(alpha, N);
-        free_matrix(beta, N);
-        
-        // Check for convergence
-        if (prob_new <= prob_priv+epsilon) {
-            converged = 1;
-        } else {
-            // Copy new model parameters to our working model
-            HMM_copy(model, new_hmm);
-            prob_priv = prob_new;
-        }
-
+        HMM_copy(model, new_hmm); 
         HMM_destroy(new_hmm);
+
+        // HMM_print(model);
+        HMM_validate(model);
 
         clock_t end_time = clock();
         double iteration_time = (double)(end_time - start_time) / CLOCKS_PER_SEC;
 
-        // Log the current iteration
+        printf("\timprovement: %f\n", prob_new-prob_priv);
         fprintf(log_file, "Iteration: %d, Log Likelihood: %f, Improvement: %f, Time: %f\n",
-                iteration, prob_new, prob_new - prob_priv, iteration_time);
-        fflush(log_file);
+                iteration, prob_new, prob_new-prob_priv, iteration_time);
+        fflush(log_file); 
 
         sprintf(model_filename, "%s/models/model_%d", logs_folder, iteration);
-        HMM_save(model, model_filename);
-
+        HMM_save(model, model_filename); 
+        if (prob_new <= prob_priv+epsilon) {
+            converged = 1;
+        }
+        prob_priv = prob_new;
         iteration++;
     }
     fclose(log_file);
