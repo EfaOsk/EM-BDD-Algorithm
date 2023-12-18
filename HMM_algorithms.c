@@ -43,7 +43,11 @@ double **forward_log(const HMM *hmm, const int *observations, int T)
 
     // Initialize the first row of alpha with initial probabilities and observations
     for (int i = 0; i < N; i++) {
-        alpha[i][0] = log(hmm->C[i]) + log(hmm->B[i][observations[0]]);
+        if ( (hmm->C[i] > 0.0) && (hmm->B[i][observations[0]] > 0.0) ) {
+            alpha[i][0] = log(hmm->C[i]) + log(hmm->B[i][observations[0]]);
+        } else {
+            alpha[i][0] = -50;
+        }
     }
 
     // Calculate the forward probabilities for the rest of the sequence
@@ -51,9 +55,17 @@ double **forward_log(const HMM *hmm, const int *observations, int T)
         for (int j = 0; j < N; j++) {
             alpha[j][t] = -INFINITY;
             for (int i = 0; i < N; i++) {
-                alpha[j][t] = log_sum_exp(alpha[j][t], alpha[i][t-1]+log(hmm->A[i][j]));
+                if (hmm->A[i][j] > 0.0) {
+                    alpha[j][t] = log_sum_exp(alpha[j][t], alpha[i][t-1]+log(hmm->A[i][j]));
+                } else {
+                    alpha[j][t] = log_sum_exp(alpha[j][t], alpha[i][t-1]-50);
+                }
             }
-            alpha[j][t] += log(hmm->B[j][observations[t]]);
+            if (hmm->B[j][observations[t]] > 0.0) {
+                alpha[j][t] += log(hmm->B[j][observations[t]]);
+            } else {
+                alpha[j][t] += -50;
+            }
         }
 
     }
@@ -103,7 +115,12 @@ double **backward_log(const HMM *hmm, const int *observations, int T)
         for (int s = 0; s < N; s++) {
             beta[s][t] = -INFINITY;
             for (int s0 = 0; s0 < N; s0++) {
-                beta[s][t] = log_sum_exp(beta[s][t], log(hmm->A[s][s0]) + log(hmm->B[s0][observations[t+1]]) + beta[s0][t+1]);
+                if (hmm->A[s][s0] > 0.0 && hmm->B[s0][observations[t+1]] > 0.0) {
+                    beta[s][t] = log_sum_exp(beta[s][t], log(hmm->A[s][s0]) + log(hmm->B[s0][observations[t+1]]) + beta[s0][t+1]);
+                } else {
+                    beta[s][t] = -50;
+                }
+                
             }
         }
     }
@@ -258,93 +275,67 @@ HMM* HMM_update_multiple(HMM *hmm, int **observations, int num_sequences, int T)
 
     HMM *new_hmm = HMM_create(N, M, "Updated model");
 
-    double ***Xi = allocate_3D_matrix(N, N, T-1, 0);
-    double **gamma = allocate_matrix(N, T, 0);
+    double ****Xi = allocate_4D_matrix(num_sequences, N, N, T-1, 0.0);
+    double ***gamma = allocate_3D_matrix(num_sequences, N, T, 0.0);
 
 
     // accumulated Xi and gamma over all sequences
     for (int seq = 0; seq < num_sequences; seq++) {
         double **alpha = forward(hmm, observations[seq], T);
         double **beta = backward(hmm, observations[seq], T);
-        double ***seq_Xi = allocate_3D_matrix(N, N, T-1, 0);
-        double **seq_gamma = allocate_matrix(N, T, 0);
-
-        calculate_Xi(hmm, seq_Xi, alpha, beta, observations[seq], T);
-        calculate_gamma(hmm, seq_gamma, alpha, beta, observations[seq], T);
-
-        // accumulated Xi and gamma values
-        for (int i = 0; i < N; i++) {
-            for (int t = 0; t < T; t++) {
-                gamma[i][t] += seq_gamma[i][t];
-                for (int j = 0; j < N; j++) {
-                    if (t < T - 1) {
-                        Xi[i][j][t] += seq_Xi[i][j][t];
-                    }
-                }
-            }
-        }
-
-        // Free memory for the sequence
+        calculate_Xi(hmm, Xi[seq], alpha, beta, observations[seq], T);
+        calculate_gamma(hmm, gamma[seq], alpha, beta, observations[seq], T);
         free_matrix(alpha, N);
         free_matrix(beta, N);
-        free_3D_matrix(seq_Xi, N, N);
-        free_matrix(seq_gamma, N);
     }
 
+    for (int s = 0; s < N; s++) {
+        double gamma_sum = 0.0; 
+        for (int k = 0; k < num_sequences; k++) {
+            gamma_sum += gamma[k][s][0];
+        }
+        new_hmm->C[s] = (gamma_sum + min_p_f) / (num_sequences+N*min_p_f);
+    }
 
     for (int s = 0; s < N; s++) {
         double gamma_sum = 0.0; // Pr(observations | hmm)
-        for (int t = 0; t < T-1; t++) {
-            gamma_sum += gamma[s][t];
+        for (int k = 0; k < num_sequences; k++) {
+            for (int t = 0; t < T-1; t++) {
+                gamma_sum += gamma[k][s][t];
+            }
         }
 
         // update Transition probability
         for (int s0 = 0; s0 < N; s0++) {
             double xi_sum  = 0.0;
-            for (int t = 0; t < T-1; t++) {
-                xi_sum  += Xi[s][s0][t];
+            for (int k = 0; k < num_sequences; k++) {
+                for (int t = 0; t < T-1; t++) {
+                    xi_sum  += Xi[k][s][s0][t];
+                }
             }
             new_hmm->A[s][s0] = (xi_sum + min_p_f)/ ( gamma_sum + min_p_f*N);
         }
-
-        gamma_sum += gamma[s][T-1] + min_p_f*M;
+        for (int k = 0; k < num_sequences; k++) {
+            gamma_sum += gamma[k][s][T-1];
+        }
         // update Observation probability
-        for (int s = 0; s < N; s++) {
-            double gamma_sum = 0.0;
-            double *gamma_obs_sum = calloc(M, sizeof(double)); // Initialize to 0 for all observation symbols
-            
-            // Accumulate gamma over all sequences and time steps for state s
-            for (int seq = 0; seq < num_sequences; seq++) {
+        for (int o0 = 0; o0 < M; o0++) {
+            double xi_sum  = 0.0;
+            for (int k = 0; k < num_sequences; k++) {
                 for (int t = 0; t < T; t++) {
-                    gamma_sum += gamma[s][t];
-                    gamma_obs_sum[observations[seq][t]] += gamma[s][t];
+                    if (o0 == observations[k][t]){
+                        xi_sum += gamma[k][s][t];
+                    }
                 }
             }
-
-            // Update observation probabilities
-            for (int o = 0; o < M; o++) {
-                new_hmm->B[s][o] = (gamma_obs_sum[o] + min_p_f) / gamma_sum;
-            }
-            
-            free(gamma_obs_sum); // Don't forget to free the allocated memory
+            new_hmm->B[s][o0] = (xi_sum + min_p_f)/ ( gamma_sum + min_p_f*M);
         }
 
     }
-
-    // update Initial state probability
-    for (int s = 0; s < N; s++) {
-        new_hmm->C[s] = (gamma[s][0] + min_p_f) / (num_sequences + N*min_p_f);
-    }
-
-
-
-    // Free Xi and gamma
-    free_3D_matrix(Xi, N, N);
-    free_matrix(gamma, N);
-
+    free_4D_matrix(Xi, num_sequences, N, N);
+    free_3D_matrix(gamma, num_sequences, N);
     return new_hmm;
 }
-
 
 HMM* HMM_learn(HMM *hypothesis_hmm, int T, int O[T], double epsilon, const char *logs_folder, const char *result_file)
 {
