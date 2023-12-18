@@ -95,6 +95,23 @@ double*** allocate_3D_matrix(int depth, int rows, int cols, double initialValue)
 }
 
 
+double**** allocate_4D_matrix(int height, int depth, int rows, int cols, double initialValue) {
+    double**** matrix = (double****)malloc(height * sizeof(double***));
+    if (matrix == NULL) {
+        return NULL;
+    }
+
+    for (int h = 0; h < height; h++) {
+        matrix[h] = allocate_3D_matrix(depth, rows, cols, initialValue);
+        if (matrix[h] == NULL) {
+            free(matrix);
+            return NULL;
+        }
+    }
+    return matrix;
+}
+
+
 void free_matrix(double **matrix, int rows) {
     if (matrix != NULL) {
         for (int i = 0; i < rows; i++) {
@@ -121,6 +138,14 @@ void free_3D_matrix(double ***matrix, int rows, int cols) {
         }
         free(matrix);
     }
+}
+
+
+void free_4D_matrix(double**** matrix, int height, int depth, int rows) {
+    for (int h = 0; h < height; h++) {
+        free_3D_matrix(matrix[h], depth, rows);
+    }
+    free(matrix);
 }
 
 
