@@ -21,7 +21,6 @@ typedef struct NodeDataList {
 // Build BDDs
 DdNode *build_F_single_seq_O(DdManager *manager, int N, int M, int T, DdNode *AS1[N], DdNode *AS[N][T-1][N], DdNode *AO[N][T][M], int O[T]);
 void encode_variables(DdManager *manager, int N, int M, int T, DdNode *AS1[N], DdNode *AS[N][T-1][N], DdNode *AO[N][T][M], int **lookup_table_variables);
-DdNode *build_C_A(DdManager *manager, int N, int M, int T, DdNode *AS1[N], DdNode *AS[N][T-1][N], DdNode *AO[N][T][M]);
 DdNode **build_F_seq(DdManager *manager, int N, int M, int NO, int T, int **O, int **lookup_table_variables);
 
 
