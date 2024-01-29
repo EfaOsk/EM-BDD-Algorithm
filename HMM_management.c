@@ -184,109 +184,75 @@ void HMM_save(const HMM *hmm, const char *filename)
 
 
 /**
- * Loads an list of HMM models from a file.
+ * Loads an a HMM model from a file.
  * 
  * @param filename The name of the file to read the HMM data from.
  * @param modelCount A pointer to an integer to store the number of HMM models loaded.
  * @return A pointer to an array of HMM structures, or NULL if an error occurs.
  */
-HMM** HMM_load(const char *filename)
-{
+HMM* HMM_load(const char *filename) {
     FILE *file = fopen(filename, "r");
     if (file == NULL) {
         perror("Error opening file");
         return NULL;
     }
 
-    int initialSize = 10; // Initial size for the list
-    HMM **hmmList = malloc(initialSize * sizeof(HMM*));
-    if (hmmList == NULL) {
+    int N, M;
+    // Read the number of states and number of observations
+    if (fscanf(file, "%d %d\n", &N, &M) != 2) {
         fclose(file);
         return NULL;
     }
-    for (int i = 0; i < initialSize; i++) {
-        hmmList[i] = NULL;
+
+    // Read the name of the HMM
+    char nameBuffer[256]; // Assuming the name will not exceed 255 characters
+    if (fgets(nameBuffer, sizeof(nameBuffer), file) == NULL) {
+        fclose(file);
+        return NULL;
+    }
+    // Remove possible newline character read by fgets
+    nameBuffer[strcspn(nameBuffer, "\r\n")] = 0;
+
+    // Allocate memory for HMM
+    HMM* hmm = HMM_create(N, M, nameBuffer);
+    if (hmm == NULL) {
+        fclose(file);
+        return NULL;
     }
 
-    int listSize = 0;
-    int N, M;
-    char buffer[256];
-
-    while (fgets(buffer, sizeof(buffer), file)) {
-        if (strcmp(buffer, "---\n") == 0) {
-            continue; // Skip separator line
+    // Read the initial state probability vector
+    for (int i = 0; i < N; i++) {
+        if (fscanf(file, "%lf", &(hmm->C[i])) != 1) {
+            HMM_destroy(hmm);
+            fclose(file);
+            return NULL;
         }
+    }
 
-        // Parse N and M
-        if (sscanf(buffer, "%d %d", &N, &M) != 2) {
-            goto error_cleanup;
-        }
-
-        // Read HMM name
-        if (fgets(buffer, sizeof(buffer), file) == NULL) {
-            goto error_cleanup;
-        }
-        buffer[strcspn(buffer, "\r\n")] = 0;
-
-        // Allocate memory for HMM
-        HMM* hmm = HMM_create(N, M, buffer);
-        if (hmm == NULL) {
-            goto error_cleanup;
-        }
-
-        // Read initial state probability vector
-        for (int i = 0; i < N; i++) {
-            if (fscanf(file, "%lf", &(hmm->C[i])) != 1) {
+    // Read the state transition probability matrix
+    for (int i = 0; i < N; i++) {
+        for (int j = 0; j < N; j++) {
+            if (fscanf(file, "%lf", &(hmm->A[i][j])) != 1) {
                 HMM_destroy(hmm);
-                goto error_cleanup;
+                fclose(file);
+                return NULL;
             }
         }
+    }
 
-        // Read state transition probability matrix
-        for (int i = 0; i < N; i++) {
-            for (int j = 0; j < N; j++) {
-                if (fscanf(file, "%lf", &(hmm->A[i][j])) != 1) {
-                    HMM_destroy(hmm);
-                    goto error_cleanup;
-                }
-            }
-        }
-
-        // Read observation probability matrix
-        for (int i = 0; i < N; i++) {
-            for (int j = 0; j < M; j++) {
-                if (fscanf(file, "%lf", &(hmm->B[i][j])) != 1) {
-                    HMM_destroy(hmm);
-                    goto error_cleanup;
-                }
-            }
-        }
-
-        // Add the HMM to the list
-        if (listSize == initialSize) {
-            initialSize *= 2;
-            HMM **newList = realloc(hmmList, initialSize * sizeof(HMM*));
-            if (newList == NULL) {
+    // Read the observation probability matrix
+    for (int i = 0; i < N; i++) {
+        for (int j = 0; j < M; j++) {
+            if (fscanf(file, "%lf", &(hmm->B[i][j])) != 1) {
                 HMM_destroy(hmm);
-                goto error_cleanup;
+                fclose(file);
+                return NULL;
             }
-            hmmList = newList;
         }
-        hmmList[listSize++] = hmm;
     }
 
     fclose(file);
-    return hmmList;
-
-error_cleanup:
-    for (int i = 0; i < listSize; i++) {
-        if (hmmList[i] != NULL) {
-            HMM_destroy(hmmList[i]);
-        }
-    }
-    free(hmmList);
-    fclose(file);
-    return NULL;
+    return hmm;
 }
 
 
