@@ -4,7 +4,7 @@ export CPATH=//mnt/c/Users/EfaOsk/Documents/GitHub/cudd-3.0.0/://mnt/c/Users/Efa
 cd /mnt/c/Users/EfaOsk/OneDrive/Myndir/Documents/GitHub/LearningBDDs/
 export CPATH=//mnt/c/Users/EfaOsk/OneDrive/Myndir/Documents/GitHub/cudd-3.0.0/://mnt/c/Users/EfaOsk/OneDrive/Myndir/Documents/GitHub/cudd-3.0.0/cudd://mnt/c/Users/EfaOsk/OneDrive/Myndir/Documents/GitHub/cudd-3.0.0/util
 
-gcc -o test helpers.c learn.c HMM.c exampleHMM.c main.c /mnt/c/Users/EfaOsk/OneDrive/Myndir/Documents/GitHub/cudd-3.0.0/cudd/.libs/libcudd.a -Icudd -Iutil -lm -O3
+gcc -o test helpers.c BDD_build.c BDD_learn.c HMM_utils.c HMM_algorithms.c HMM_management.c exampleHMM.c main.c /mnt/c/Users/EfaOsk/OneDrive/Myndir/Documents/GitHub/cudd-3.0.0/cudd/.libs/libcudd.a -Icudd -Iutil -lm -O3
 
 
 .dot -> .png

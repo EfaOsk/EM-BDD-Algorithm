@@ -30,6 +30,7 @@ void free_4D_matrix(double**** matrix, int height, int depth, int rows);
 double log_sum_exp(double a, double b);
 void save_list(const int *list, int size, const char *filename);
 int **read_list(const char *filename);
+long get_mem_usage();
 
 
 #endif

@@ -337,7 +337,7 @@ HMM* HMM_update_multiple(HMM *hmm, int **observations, int num_sequences, int T)
     return new_hmm;
 }
 
-HMM* HMM_learn(HMM *hypothesis_hmm, int T, int O[T], double epsilon, const char *logs_folder, const char *result_file)
+HMM* BW_learn(HMM *hypothesis_hmm, int T, int O[T], double epsilon)
 {
     /*
 
@@ -362,23 +362,7 @@ HMM* HMM_learn(HMM *hypothesis_hmm, int T, int O[T], double epsilon, const char 
     HMM_copy(model, hypothesis_hmm);
     HMM_validate(model);
 
-    // for loging
-    int iteration = 0;
-    char log_filename[256];
-    char model_filename[256];
 
-    // Construct the log filename
-    sprintf(log_filename, "%s/log.txt", logs_folder);
-
-    // Open the log file
-    FILE *log_file = fopen(log_filename, "w");
-    if (log_file == NULL) {
-        perror("Error opening log file");
-        return NULL;
-    }
-
-    sprintf(model_filename, "%s/models", logs_folder);
-    mkdir(model_filename, 0777);
     double prob_priv, prob_original, prob_new;
     prob_original = log_likelihood_forward(model, O, T);
     prob_priv = prob_original;
@@ -426,37 +410,15 @@ HMM* HMM_learn(HMM *hypothesis_hmm, int T, int O[T], double epsilon, const char 
         double iteration_time = (double)(end_time - start_time) / CLOCKS_PER_SEC;
 
         // printf("\timprovement: %f\n", prob_new-prob_priv);
-        fprintf(log_file, "Iteration: %d, Log Likelihood: %f, Improvement: %f, Time: %f\n",
-                iteration, prob_new, prob_new-prob_priv, iteration_time);
-        fflush(log_file); 
 
-        sprintf(model_filename, "%s/models/model_%d", logs_folder, iteration);
-        HMM_save(model, model_filename); 
         if (prob_new <= prob_priv+epsilon) {
             converged = 1;
         }
 
         prob_priv = prob_new;
-        iteration++;
 
 
     }
-    fclose(log_file);
-
-    // Open the result file in append mode
-    FILE *result_fp = fopen(result_file, "a");
-    if (result_fp == NULL) {
-        perror("Error opening result file");
-        return NULL;
-    }
-
-    // Append the results to the result file
-    fprintf(result_fp, "%d, %f, %f\n", iteration, prob_new, prob_new - prob_original);
-
-
-    // Close the result file
-    fclose(result_fp);
-
 
     // Step 6: Return the learned model
     
@@ -464,31 +426,14 @@ HMM* HMM_learn(HMM *hypothesis_hmm, int T, int O[T], double epsilon, const char 
 }
 
 
-HMM* HMM_learn_multiple(HMM *hypothesis_hmm, int num_sequences, int **observations, int T, double epsilon, const char *logs_folder, const char *result_file) {
+HMM* BW_learn_multiple(HMM *hypothesis_hmm, int num_sequences, int **observations, int T, double epsilon) {
     int N = hypothesis_hmm->N;
     int M = hypothesis_hmm->M;
     HMM *model = HMM_create(N, M, "model");
     HMM_copy(model, hypothesis_hmm);
     HMM_validate(model);
 
-    // For logging
-    int iteration = 0;
-    char log_filename[256];
-    char model_filename[256];
 
-    // Construct the log filename
-    sprintf(log_filename, "%s/log.txt", logs_folder);
-    // sprintf(log_filename, "log.txt");
-
-    // Open the log file
-    FILE *log_file = fopen(log_filename, "w");
-    if (log_file == NULL) {
-        perror("Error opening log file");
-        return NULL;
-    }
-
-    sprintf(model_filename, "%s/models", logs_folder);
-    mkdir(model_filename, 0777);
     double prob_priv, prob_original, prob_new;
     prob_original = log_likelihood_forward_multiple(model, observations, num_sequences, T);
     prob_priv = prob_original;
@@ -512,28 +457,12 @@ HMM* HMM_learn_multiple(HMM *hypothesis_hmm, int num_sequences, int **observatio
         double iteration_time = (double)(end_time - start_time) / CLOCKS_PER_SEC;
 
         printf("\timprovement: %f\n", prob_new-prob_priv);
-        fprintf(log_file, "Iteration: %d, Log Likelihood: %f, Improvement: %f, Time: %f\n",
-                iteration, prob_new, prob_new-prob_priv, iteration_time);
-        fflush(log_file); 
 
-        sprintf(model_filename, "%s/models/model_%d", logs_folder, iteration);
-        HMM_save(model, model_filename); 
         if (prob_new <= prob_priv+epsilon) {
             converged = 1;
         }
         prob_priv = prob_new;
-        iteration++;
     }
-    fclose(log_file);
-
-    // Append the results to the result file
-    FILE *result_fp = fopen(result_file, "a");
-    if (result_fp == NULL) {
-        perror("Error opening result file");
-        return NULL;
-    }
-    fprintf(result_fp, "%d, %f, %f\n", iteration, prob_new, prob_new - prob_priv);
-    fclose(result_fp);
 
     // Return the learned model
     return model;

@@ -6,6 +6,8 @@
 #include <math.h>
 #include <errno.h>
 
+#include <sys/resource.h>
+
 /**
  * Print a dd summary
  * pr = 0 : prints nothing
@@ -205,3 +207,11 @@ int **read_list(const char *filename) {
     fclose(file);
     return lists;
 }
+
+
+long get_mem_usage() {
+    struct rusage myusage;
+    getrusage(RUSAGE_SELF, &myusage);
+    return myusage.ru_maxrss;
+}
+

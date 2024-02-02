@@ -139,10 +139,10 @@ double Backward(DdManager* manager, DdNode* node, const HMM *hmm, int** lookup_t
  * @param hmm       A pointer to a Hidden Markov Model (HMM) or a similar probabilistic model.
  * @param num_roots The number of BDD roots in the 'F_all' array.
  */
-void CalculateForward(DdManager* manager, DdNode** F_seq, const HMM *hmm, int T, int NO, int** lookup_table_variables) {
+void CalculateForward(DdManager* manager, DdNode** F_seq, const HMM *hmm, int T, int num_sequences, int** lookup_table_variables) {
     int numVars = Cudd_ReadSize(manager); // Cudd_ReadNodeCount(manager)+(hmm->N)*T+2;
  
-    for (int r = 0; r < NO; r++) {
+    for (int r = 0; r < num_sequences; r++) {
         DdNode *targetNode = F_seq[r];
         int isNegated = Cudd_IsComplement(targetNode);
         if (isNegated) {
@@ -159,10 +159,10 @@ void CalculateForward(DdManager* manager, DdNode** F_seq, const HMM *hmm, int T,
         double backwardVal = Backward(manager, targetNode, hmm, lookup_table_variables);
         if (!isNegated) {
             // even number of comple edges
-            targetNodeData->forward[1] += 1 / (1 - backwardVal);
+            targetNodeData->forward[1] += 1 / (1-backwardVal);
         } else {
             // odd number of comple edges
-            targetNodeData->forward[0] += 1 / (1 - backwardVal);
+            targetNodeData->forward[0] += 1 / (1-backwardVal);
         }
     }
 
@@ -207,7 +207,7 @@ void CalculateForward(DdManager* manager, DdNode** F_seq, const HMM *hmm, int T,
 }
 
 
-void InitNodeData(DdManager* manager, DdNode** F_seq, int T, int NO) {
+void InitNodeData(DdManager* manager, DdNode** F_seq, int T, int num_sequences) {
     int numVars = Cudd_ReadSize(manager); 
     nodeData = (NodeDataList **)malloc((numVars + 1) * sizeof(NodeDataList*));
 
@@ -225,7 +225,7 @@ void InitNodeData(DdManager* manager, DdNode** F_seq, int T, int NO) {
     DdGen *gen;
 
 
-    for (int r = 0; r < NO; r++){
+    for (int r = 0; r < num_sequences; r++){
         Cudd_ForeachNode(manager, F_seq[r], gen, node) {
             if (node == Cudd_ReadLogicZero(manager) || node == Cudd_Not(Cudd_ReadLogicZero(manager))) {
                 // Terminal node
@@ -461,12 +461,12 @@ HMM* BDD_update(HMM *hmm, double ***eta) {
  *       
  * @param hypothesis_hmm  Pointer to an HMM structure, which is the initial hypothesis for the HMM.
  * @param T               The length of the observation sequence.
- * @param O               Observation sequence, an array of integers of length T.
+ * @param observations    Observation sequence, an array of integers of length T.
  * @param epsilon         The convergence threshold; when the change in log likelihood is less than or equal to this value, learning stops.
  * @param logs_folder     Path to the folder where logs and model files will be saved.
  * @return HMM*           Pointer to the learned HMM structure.
  */
-HMM* BDD_learn(HMM *hypothesis_hmm, int T, int NO, int **O, double epsilon, const char *logs_folder, const char *result_file) {
+HMM* EMBDD_learn( HMM *hypothesis_hmm, int num_sequences, int **observations, int T, double epsilon) {
     /*
 
     EM on BDD
@@ -497,26 +497,6 @@ HMM* BDD_learn(HMM *hypothesis_hmm, int T, int NO, int **O, double epsilon, cons
 
     HMM_copy(model, hypothesis_hmm);
 
-    // for loging
-    int iteration = 0;
-    char log_filename[256];
-    char model_filename[256];
-
-    // Construct the log filename
-    // sprintf(log_filename, "%s/log.txt", logs_folder);
-    sprintf(log_filename, "log.txt");
-
-    // Open the log file
-    FILE *log_file = fopen(log_filename, "a");
-    if (log_file == NULL) {
-        perror("Error opening log file");
-        return NULL;
-    }
-
-    sprintf(model_filename, "%s/models", logs_folder);
-    mkdir(model_filename, 0777);
-    
-
     // Step 1 build (S)BDD
     DdManager *manager = Cudd_Init(0,0,CUDD_UNIQUE_SLOTS,CUDD_CACHE_SLOTS, 0);  
     Cudd_AutodynEnable(manager, CUDD_REORDER_SAME);
@@ -527,7 +507,7 @@ HMM* BDD_learn(HMM *hypothesis_hmm, int T, int NO, int **O, double epsilon, cons
         (lookup_table_variables)[id] = (int *)malloc(4 * sizeof(int));
     }
 
-    DdNode **F_obs = build_F_seq(manager, N, M, NO, T, O, lookup_table_variables);
+    DdNode **F_obs = build_F_seq(manager, N, M, num_sequences, T, observations, lookup_table_variables);
 
     int numVars = Cudd_ReadSize(manager);
 
@@ -536,7 +516,7 @@ HMM* BDD_learn(HMM *hypothesis_hmm, int T, int NO, int **O, double epsilon, cons
 
 
     double prob_priv, prob_original, prob_new;
-    prob_original = log_likelihood_forward_multiple(model, O, NO, T);
+    prob_original = log_likelihood_forward_multiple(model, observations, num_sequences, T);
     prob_priv = prob_original;
     int converged = 0;
 
@@ -545,7 +525,7 @@ HMM* BDD_learn(HMM *hypothesis_hmm, int T, int NO, int **O, double epsilon, cons
     double ***gamma = allocate_3D_matrix(3, N, tmp, 0.0);
     double *D = malloc((numVars+1) * sizeof(double));
 
-    InitNodeData(manager, F_obs, T, NO);
+    InitNodeData(manager, F_obs, T, num_sequences);
 
     while (!converged)
     {
@@ -559,7 +539,7 @@ HMM* BDD_learn(HMM *hypothesis_hmm, int T, int NO, int **O, double epsilon, cons
 
         // Step 3 (b) : Forward
     
-        CalculateForward(manager, F_obs, model, T, NO, lookup_table_variables);
+        CalculateForward(manager, F_obs, model, T, num_sequences, lookup_table_variables);
 
         // Step 3 (c) : Conditional Expectations
 
@@ -571,64 +551,23 @@ HMM* BDD_learn(HMM *hypothesis_hmm, int T, int NO, int **O, double epsilon, cons
         const HMM *new_hmm = BDD_update(model, eta);
 
 
-        prob_new = log_likelihood_forward_multiple(new_hmm, O, NO, T);
+        prob_new = log_likelihood_forward_multiple(new_hmm, observations, num_sequences, T);
         
         
         HMM_copy(model, new_hmm); 
         HMM_destroy(new_hmm);
 
-        // HMM_print(model);
         HMM_validate(model);
 
         clock_t end_time = clock();
         double iteration_time = (double)(end_time - start_time) / CLOCKS_PER_SEC;
 
         printf("\timprovement: %f\n", prob_new-prob_priv);
-        fprintf(log_file, "Iteration: %d, Log Likelihood: %f, Improvement: %f, Time: %f\n",
-                iteration, prob_new, prob_new-prob_priv, iteration_time);
-        fflush(log_file); 
-
-        sprintf(model_filename, "%s/models/model_%d", logs_folder, iteration);
-        HMM_save(model, model_filename); 
         if (prob_new <= prob_priv+epsilon) {
             converged = 1;
         }
         prob_priv = prob_new;
-        iteration++;
     }
-
-    fclose(log_file);
-
-    // Open the result file in append mode
-    FILE *result_fp = fopen(result_file, "a");
-    if (result_fp == NULL) {
-        perror("Error opening result file");
-        return NULL;
-    }
-
-    // Append the results to the result file
-    fprintf(result_fp, "%d, %f, %f\n", iteration, prob_new, prob_new - prob_original);
-
-
-    // ToDo: remove (For Debuging):
-    fprintf(result_fp, "N : %d | ", N );
-    fprintf(result_fp, "M : %d | ", M );
-    fprintf(result_fp, "T : %d | ", T );
-    fprintf(result_fp, "Encode: TRUE | ");
-    fprintf(result_fp, "DdManager vars: %d | ", numVars ); // Returns the number of BDD variables in existence
-    fprintf(result_fp, "DdManager nodes: %ld | ", Cudd_ReadNodeCount(manager) ); // Reports the number of live nodes in BDDs and ADDs
-    fprintf(result_fp, "DdManager reorderings: %d | ", Cudd_ReadReorderings(manager) ); // Returns the number of times reordering has occurred
-    fprintf(result_fp, "DdManager memory: %ld \n", Cudd_ReadMemoryInUse(manager) ); // Returns the memory in use by the manager measured in bytes
-    
-    // Close the result file
-    fclose(result_fp);
-
-    char BDDfilename[526];
-    sprintf(BDDfilename, "%s/BDD.dot", logs_folder); // Write .dot filename to a string
-    FILE *outfile; // output file pointer for .dot file
-    outfile = fopen(BDDfilename,"w");
-    Cudd_DumpDot(manager, (1), F_obs, NULL, NULL, outfile);
-    fclose(outfile);
 
     // Clean up
     for (int x = 0; x < 3; x++) {

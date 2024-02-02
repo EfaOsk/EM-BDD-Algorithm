@@ -26,10 +26,10 @@
  * @param AS1     Array of BDDs representing AS1.
  * @param AS      Array of BDDs representing AS.
  * @param AO      Array of BDDs representing AO.
- * @param O       Array representing O.
+ * @param observation   Array representing O.
  * @return        The resulting F_O BDD.
  */
-DdNode *build_F_single_seq_O(DdManager *manager, int N, int M, int T, DdNode *AS1[N], DdNode *AS[N][T-1][N], DdNode *AO[N][T][M], int O[T]) {
+DdNode *build_F_single_seq_O(DdManager *manager, int N, int M, int T, DdNode *AS1[N], DdNode *AS[N][T-1][N], DdNode *AO[N][T][M], int observations[T]) {
     // Create FO array
     DdNode *FO[T+1][N];
     // Base case: F_O^(L, i) = true for all i
@@ -45,7 +45,7 @@ DdNode *build_F_single_seq_O(DdManager *manager, int N, int M, int T, DdNode *AS
             Cudd_Ref(FO[t][i]);
 
             for (int j = 0; j < N; j++) {
-                DdNode *temp = Cudd_bddAnd(manager, AS[i][t-1][j], AO[j][t][O[t]]);
+                DdNode *temp = Cudd_bddAnd(manager, AS[i][t-1][j], AO[j][t][observations[t]]);
                 Cudd_Ref(temp);
 
                 DdNode *recursive = Cudd_bddAnd(manager, temp, FO[t+1][j]);
@@ -65,7 +65,7 @@ DdNode *build_F_single_seq_O(DdManager *manager, int N, int M, int T, DdNode *AS
 
     // F_O = (AS1[i] & AO[i][1][0] & F_O^(2, i)) for i = 0 to N-1
     for (int i = 0; i < N; i++) {
-        DdNode *temp = Cudd_bddAnd(manager, AS1[i], AO[i][0][O[0]]);
+        DdNode *temp = Cudd_bddAnd(manager, AS1[i], AO[i][0][observations[0]]);
         Cudd_Ref(temp);
 
         DdNode *recursive = Cudd_bddAnd(manager, temp, FO[1][i]);
@@ -315,11 +315,11 @@ void encode_variables(DdManager *manager, int N, int M, int T, DdNode *AS1[N], D
  * @param N       The number of states.
  * @param M       The number of letters in alphabet.
  * @param T       The length of the sequence.
- * @param O       The observation sequence to represent
+ * @param observations       The observation sequence to represent
  *
  * @return An array of FO nodes for all possible sequences.
  */
-DdNode **build_F_seq(DdManager *manager, int N, int M, int NO, int T, int **O, int **lookup_table_variables) {
+DdNode **build_F_seq(DdManager *manager, int N, int M, int NO, int T, int **observations, int **lookup_table_variables) {
     
     // Define the variables
     DdNode *AS1[N];             // AS1[u] := "S1 = u"
@@ -329,36 +329,10 @@ DdNode **build_F_seq(DdManager *manager, int N, int M, int NO, int T, int **O, i
 
     encode_variables(manager, N, M, T, AS1, AS, AO, lookup_table_variables);
 
-    // If not encode, set the initial varables
-        // for (int u = 0; u < N; u++){
-        //     for (int t = 0; t < T; t++){
-        //         for (int o = 0; o < M; o++){
-        //             AO[u][t][o] = Cudd_bddNewVar(manager);
-        //             // printf("O^%d_%d = %d\n", u, t, o);
-        //         }
-        //     }
-        // }
-
-        // for (int u = 0; u < N; u++){
-        //     AS1[u] = Cudd_bddNewVar(manager);
-        //     // printf("S_0 = %d\n", u);
-        // }
-
-        // for (int u = 0; u < N; u++){
-        //     for (int t = 0; t < T-1; t++){
-        //         for (int v = 0; v < N; v++){
-        //             AS[u][t][v] = Cudd_bddNewVar(manager);
-        //             // printf("S^%d_%d = %d\n", u, t+1, v);
-        //         }
-        //     }
-        // }
-    
-    // If not encode, set the initial varables
-    // DdNode* C_A= build_C_A(manager, N, M, T, AS1, AS, AO);
     
     DdNode** F_seq = malloc((NO) * sizeof(DdNode*));
     for (int obs_i = 0; obs_i < NO; obs_i++) {
-        DdNode* temp = build_F_single_seq_O(manager, N, M, T, AS1, AS, AO, O[obs_i]);
+        DdNode* temp = build_F_single_seq_O(manager, N, M, T, AS1, AS, AO, observations[obs_i]);
         F_seq[obs_i] = temp;
     }
 
