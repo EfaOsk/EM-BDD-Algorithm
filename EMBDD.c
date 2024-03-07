@@ -293,7 +293,7 @@ void CleanNodeData(int numVars) {
             node = node->next;
         }
     }
-    nodeData[numVars]->head->backward = 1.0;
+    nodeData[numVars]->head->backward = 1.0; // Inizilize forward with 0
 }
 
 
@@ -463,7 +463,6 @@ HMM* BDD_update(HMM *hmm, double ***eta) {
  * @param T               The length of the observation sequence.
  * @param observations    Observation sequence, an array of integers of length T.
  * @param epsilon         The convergence threshold; when the change in log likelihood is less than or equal to this value, learning stops.
- * @param logs_folder     Path to the folder where logs and model files will be saved.
  * @return HMM*           Pointer to the learned HMM structure.
  */
 HMM* EMBDD_learn( HMM *hypothesis_hmm, int num_sequences, int **observations, int T, double epsilon) {

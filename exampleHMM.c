@@ -1,16 +1,94 @@
 #include "HMM.h"
 #include "helpers.h"
-
-
 #include "exampleHMM.h"
 #include "stdlib.h"
+#include <string.h>
+
+void initialize_large_model_with_varying_structure(HMM *model, int numStates, int numObservations) {
+    // Zero-initialize matrices
+    for (int i = 0; i < numStates; i++) {
+        memset(model->A[i], 0, numStates * sizeof(double));
+        memset(model->B[i], 0, numObservations * sizeof(double));
+    }
+    memset(model->C, 0, numStates * sizeof(double));
+
+    // Transition matrix with varying out-degree
+    for (int i = 0; i < numStates; i++) {
+        // Determine out-degree for this state (at least 1, up to numStates)
+        int outDegree = (rand() % (numStates - 1)) + 1; // Ensures at least 1 out-degree
+        double totalProb = 0.0, prob;
+        for (int j = 0; j < outDegree; j++) {
+            // Randomly pick a state to transition to, ensuring it's not a self-transition
+            int transitionState = (i + j + 1) % numStates;
+            prob = (1.0 - totalProb) / (outDegree - j); // Distribute remaining probability among remaining transitions
+            model->A[i][transitionState] = prob;
+            totalProb += prob;
+        }
+        model->A[i][i] = 1.0 - totalProb; // Remaining probability assigned to self-transition
+    }
+
+    // Observation matrix with varying probabilities
+    for (int i = 0; i < numStates; i++) {
+        double totalProb = 0.0;
+        int significantObservation = rand() % numObservations; // Choose one observation to be more likely than others
+        for (int j = 0; j < numObservations; j++) {
+            if (j == significantObservation) {
+                model->B[i][j] = 0.5 + ((double)rand() / RAND_MAX) * 0.5; // Assign a higher probability to one observation
+            } else {
+                double prob = ((double)rand() / RAND_MAX) * (0.5 / (numObservations - 1)); // Distribute the rest among others
+                model->B[i][j] = prob;
+            }
+            totalProb += model->B[i][j];
+        }
+        // Normalize the probabilities to ensure they sum up to 1
+        for (int j = 0; j < numObservations; j++) {
+            model->B[i][j] /= totalProb;
+        }
+    }
+
+    // Initial state distribution with varying probabilities
+    double totalCProb = 0.0;
+    for (int i = 0; i < numStates; i++) {
+        double prob;
+        if (i < numStates / 2) {
+            // Assign higher probabilities to the first half of states
+            prob = ((double)rand() / RAND_MAX) * (2.0 / numStates);
+        } else {
+            // Lower probabilities for the second half
+            prob = ((double)rand() / RAND_MAX) * (1.0 / numStates);
+        }
+        model->C[i] = prob;
+        totalCProb += prob;
+    }
+    // Normalize the initial state probabilities
+    for (int i = 0; i < numStates; i++) {
+        model->C[i] /= totalCProb;
+    }
+}
+
+
+HMM** initialize_example_models_large() {
+    HMM **models = (HMM **)malloc(NUM_LARGE_MODELS * sizeof(HMM *));
+    // Assuming larger models have more states and observations
+    int numStatesArr[NUM_LARGE_MODELS] = {20, 25, 30, 35, 40, 45, 50, 55, 60, 65};
+    int numObservationsArr[NUM_LARGE_MODELS] = {15, 20, 25, 30, 35, 40, 45, 50, 55, 60};
+
+    for (int i = 0; i < NUM_LARGE_MODELS; i++) {
+        char modelName[50];
+        sprintf(modelName, "Example Large Model %d", i);
+        models[i] = HMM_create(numStatesArr[i], numObservationsArr[i], modelName);
+        initialize_large_model_with_varying_structure(models[i], numStatesArr[i], numObservationsArr[i]);
+    }
+
+    return models;
+}
 
 /**
  * @brief Initilizes ten example HMM.
  * 
  * @return HMM** 
  */
-HMM** initialize_example_models() {
+HMM** initialize_example_models_small() {
     // Initilizes ten example HMM. 
     
     HMM **models = (HMM **)malloc(NUM_MODELS * sizeof(HMM *)); // Allocate memory for 10 HMM models

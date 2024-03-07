@@ -153,6 +153,12 @@ void free_4D_matrix(double**** matrix, int height, int depth, int rows) {
 
 double log_sum_exp(double a, double b) {
     double max_val = (a > b) ? a : b;
+    if (a == -INFINITY) {
+        return b;
+    } 
+    if (b == -INFINITY) {
+        return a;
+    }
     return max_val + log(exp(a - max_val) + exp(b - max_val));
 }
 

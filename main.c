@@ -16,10 +16,10 @@
 
 int main(int argc, char *argv[]) {
 
-    HMM **example_models = initialize_example_models_old();
+    HMM **example_models = initialize_example_models_large();
     
-    int T = 10;
-    int num_sequences = 20;
+    int T = 50;
+    int num_sequences = 10000;
     double epsilon = 0.01;
     HMM *hypothesis_hmm, *learned_model_BW, *learned_model_EMBDD;
 
