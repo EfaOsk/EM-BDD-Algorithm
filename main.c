@@ -33,9 +33,15 @@ int main(int argc, char *argv[]) {
             } 
             hypothesis_hmm = HMM_random_create(example_models[m]->N, example_models[m]->M, "hypothesis model");
             printf("Baum-Welch %s\n", example_models[m]->name);
+            char bw_filename[256];
+            sprintf(bw_filename, "%s_BW_learned_model.txt", example_models[m]->modelName);
+            HMM_save(learned_model_BW, bw_filename);
             learned_model_BW = BW_learn_multiple(hypothesis_hmm, num_sequences, obs_seq, T, epsilon);
             printf("EM-BDD %s\n", example_models[m]->name);
             learned_model_EMBDD = EMBDD_learn(hypothesis_hmm, num_sequences, obs_seq, T, epsilon);
+            char embdd_filename[256];
+            sprintf(embdd_filename, "%s_EMBDD_learned_model.txt", example_models[m]->modelName);
+            HMM_save(learned_model_EMBDD, embdd_filename);
         }
     }
 
