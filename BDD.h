@@ -32,7 +32,7 @@ double Backward(DdManager* manager, DdNode* node, const HMM *hmm, int** lookup_t
 void CalculateForward(DdManager* manager, DdNode** F_seq, const HMM *hmm, int T, int num_sequences, int** lookup_table_variables);
 void computeConditionalExpectations(DdManager *manager, const HMM *hmm, int T, double ***eta,  double ***gamma,  double *D, int **lookup_table_variables);
 HMM* BDD_update(HMM *hmm, double ***eta);
-HMM* EMBDD_learn(HMM *hypothesis_hmm, int num_sequences, int **observations, int T, double epsilon);
+HMM* EMBDD_learn(HMM *hypothesis_hmm, int num_sequences, int **observations, int T, double epsilon, const char *logs_folder, const char *result_file);
 
 
 

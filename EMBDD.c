@@ -465,7 +465,7 @@ HMM* BDD_update(HMM *hmm, double ***eta) {
  * @param epsilon         The convergence threshold; when the change in log likelihood is less than or equal to this value, learning stops.
  * @return HMM*           Pointer to the learned HMM structure.
  */
-HMM* EMBDD_learn( HMM *hypothesis_hmm, int num_sequences, int **observations, int T, double epsilon) {
+HMM* EMBDD_learn( HMM *hypothesis_hmm, int num_sequences, int **observations, int T, double epsilon, const char *logs_folder, const char *result_file) {
     /*
 
     EM on BDD
@@ -496,6 +496,22 @@ HMM* EMBDD_learn( HMM *hypothesis_hmm, int num_sequences, int **observations, in
 
     HMM_copy(model, hypothesis_hmm);
 
+    char log_filename[256];
+    char model_filename[256];
+    // Construct the log filename
+    sprintf(log_filename, "%s/log.txt", logs_folder);
+
+    // Open the log file
+    FILE *log_file = fopen(log_filename, "w");
+    if (log_file == NULL) {
+        perror("Error opening log file");
+        return NULL;
+    }
+
+    sprintf(model_filename, "%s/models", logs_folder);
+    mkdir(model_filename, 0777);
+
+
     // Step 1 build (S)BDD
     DdManager *manager = Cudd_Init(0,0,CUDD_UNIQUE_SLOTS,CUDD_CACHE_SLOTS, 0);  
     Cudd_AutodynEnable(manager, CUDD_REORDER_SAME);
@@ -510,6 +526,15 @@ HMM* EMBDD_learn( HMM *hypothesis_hmm, int num_sequences, int **observations, in
 
     int numVars = Cudd_ReadSize(manager);
 
+
+    char BDDfilename[526];
+    sprintf(BDDfilename, "%s/BDD.dot", logs_folder); // Write .dot filename to a string
+    FILE *outfile; // output file pointer for .dot file
+    outfile = fopen(BDDfilename,"w");
+    Cudd_DumpDot(manager, (1), F_obs, NULL, NULL, outfile);
+    fclose(outfile);
+
+
     // Step 2: initilize M (= some random HMM) 
         // ToDo currently input
 
@@ -518,6 +543,7 @@ HMM* EMBDD_learn( HMM *hypothesis_hmm, int num_sequences, int **observations, in
     prob_original = log_likelihood_forward_multiple(model, observations, num_sequences, T);
     prob_priv = prob_original;
     int converged = 0;
+    int iteration = 0;
 
     int tmp = (N > M) ? N : M;
     double ***eta = allocate_3D_matrix(3, N, tmp, 0.0);
@@ -526,6 +552,7 @@ HMM* EMBDD_learn( HMM *hypothesis_hmm, int num_sequences, int **observations, in
 
     InitNodeData(manager, F_obs, T, num_sequences);
 
+    printf("Starting EM-BDD learning process...\n");
     while (!converged)
     {
         clock_t start_time = clock();
@@ -561,12 +588,30 @@ HMM* EMBDD_learn( HMM *hypothesis_hmm, int num_sequences, int **observations, in
         clock_t end_time = clock();
         double iteration_time = (double)(end_time - start_time) / CLOCKS_PER_SEC;
 
-        printf("\timprovement: %f\n", prob_new-prob_priv);
+        fprintf(log_file, "Iteration %d: Log-likelihood = %f, Improvement = %f, Time = %f seconds\n", 
+            ++iteration, prob_new, prob_new - prob_priv, iteration_time);
+        fflush(log_file); 
+        
+        sprintf(model_filename, "%s/models/model_%d", logs_folder, iteration);
+        HMM_save(model, model_filename); 
         if (prob_new <= prob_priv+epsilon) {
             converged = 1;
+            printf("Convergence achieved after %d iterations.\n", iteration);
         }
         prob_priv = prob_new;
     }
+
+    fclose(log_file);
+
+    // Open the result file in append mode
+    FILE *result_fp = fopen(result_file, "a");
+    if (result_fp == NULL) {
+        perror("Error opening result file");
+        HMM_destroy(model);
+        fclose(log_file);
+    }
+
+    fprintf(result_fp, "%d, %f, %f\n", iteration, prob_new, prob_new - prob_original);
 
     // Clean up
     for (int x = 0; x < 3; x++) {

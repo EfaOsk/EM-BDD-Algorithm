@@ -37,8 +37,8 @@ double log_likelihood_forward_multiple(const HMM *hmm, int **observations, int n
 void calculate_Xi(HMM *hmm, double ***Xi, double **alpha, double **beta, int *observations, int T);
 void calculate_gamma(HMM *hmm, double **gamma, double **alpha, double **beta, int *observations, int T);
 HMM* HMM_update(HMM *hmm, double **alpha, double **beta, int *observations, int T);
-HMM* BW_learn(HMM *hypothesis_hmm, int T, int O[T], double epsilon);
-HMM* BW_learn_multiple(HMM *hypothesis_hmm, int num_sequences, int **observations, int T, double epsilon);
+HMM* BW_learn(HMM *hypothesis_hmm, int T, int O[T], double epsilon, const char *logs_folder, const char *result_file);
+HMM* BW_learn_multiple(HMM *hypothesis_hmm, int num_sequences, int **observations, int T, double epsilon, const char *logs_folder, const char *result_file);
 
 // Prototypes for utility functions (from HMM_utils.c)
 

@@ -337,7 +337,7 @@ HMM* HMM_update_multiple(HMM *hmm, int **observations, int num_sequences, int T)
     return new_hmm;
 }
 
-HMM* BW_learn(HMM *hypothesis_hmm, int T, int O[T], double epsilon)
+HMM* BW_learn(HMM *hypothesis_hmm, int T, int O[T], double epsilon, const char *logs_folder, const char *result_file)
 {
     /*
 
@@ -362,13 +362,29 @@ HMM* BW_learn(HMM *hypothesis_hmm, int T, int O[T], double epsilon)
     HMM_copy(model, hypothesis_hmm);
     HMM_validate(model);
 
+    char log_filename[256];
+    char model_filename[256];
+    // Construct the log filename
+    sprintf(log_filename, "%s/log.txt", logs_folder);
+
+    // Open the log file
+    FILE *log_file = fopen(log_filename, "w");
+    if (log_file == NULL) {
+        perror("Error opening log file");
+        return NULL;
+    }
+
+    sprintf(model_filename, "%s/models", logs_folder);
+    mkdir(model_filename, 0777);
+
 
     double prob_priv, prob_original, prob_new;
     prob_original = log_likelihood_forward(model, O, T);
     prob_priv = prob_original;
     int converged = 0;
+    int iteration = 0;
 
-
+    printf("Starting Baum-Welch learning process...\n");
     while (!converged)
     {   
         clock_t start_time = clock();
@@ -408,11 +424,17 @@ HMM* BW_learn(HMM *hypothesis_hmm, int T, int O[T], double epsilon)
         HMM_validate(model);
         clock_t end_time = clock();
         double iteration_time = (double)(end_time - start_time) / CLOCKS_PER_SEC;
-
-        // printf("\timprovement: %f\n", prob_new-prob_priv);
+        
+        fprintf(log_file, "Iteration %d: Log-likelihood = %f, Improvement = %f, Time = %f seconds\n", 
+            ++iteration, prob_new, prob_new - prob_priv, iteration_time);
+        fflush(log_file); 
+        
+        sprintf(model_filename, "%s/models/model_%d", logs_folder, iteration);
+        HMM_save(model, model_filename); 
 
         if (prob_new <= prob_priv+epsilon) {
             converged = 1;
+            printf("Convergence achieved after %d iterations.\n", iteration);
         }
 
         prob_priv = prob_new;
@@ -420,25 +442,54 @@ HMM* BW_learn(HMM *hypothesis_hmm, int T, int O[T], double epsilon)
 
     }
 
+    fclose(log_file);
+
+    // Open the result file in append mode
+    FILE *result_fp = fopen(result_file, "a");
+    if (result_fp == NULL) {
+        perror("Error opening result file");
+        HMM_destroy(model);
+        fclose(log_file);
+    }
+
+    fprintf(result_fp, "%d, %f, %f\n", iteration, prob_new, prob_new - prob_original);
+
+
     // Step 6: Return the learned model
     
     return model;
 }
 
 
-HMM* BW_learn_multiple(HMM *hypothesis_hmm, int num_sequences, int **observations, int T, double epsilon) {
+HMM* BW_learn_multiple(HMM *hypothesis_hmm, int num_sequences, int **observations, int T, double epsilon, const char *logs_folder, const char *result_file) {
     int N = hypothesis_hmm->N;
     int M = hypothesis_hmm->M;
     HMM *model = HMM_create(N, M, "model");
     HMM_copy(model, hypothesis_hmm);
     HMM_validate(model);
 
+    char log_filename[256];
+    char model_filename[256];
+    // Construct the log filename
+    sprintf(log_filename, "%s/log.txt", logs_folder);
+
+    // Open the log file
+    FILE *log_file = fopen(log_filename, "w");
+    if (log_file == NULL) {
+        perror("Error opening log file");
+        return NULL;
+    }
+
+    sprintf(model_filename, "%s/models", logs_folder);
+    mkdir(model_filename, 0777);
 
     double prob_priv, prob_original, prob_new;
     prob_original = log_likelihood_forward_multiple(model, observations, num_sequences, T);
     prob_priv = prob_original;
     
     int converged = 0;
+    int iteration = 0;
+    printf("Starting Baum-Welch learning process...\n");
     while (!converged) {   
         clock_t start_time = clock();
         
@@ -456,13 +507,32 @@ HMM* BW_learn_multiple(HMM *hypothesis_hmm, int num_sequences, int **observation
         clock_t end_time = clock();
         double iteration_time = (double)(end_time - start_time) / CLOCKS_PER_SEC;
 
-        printf("\timprovement: %f\n", prob_new-prob_priv);
+        fprintf(log_file, "Iteration %d: Log-likelihood = %f, Improvement = %f, Time = %f seconds\n", 
+            ++iteration, prob_new, prob_new - prob_priv, iteration_time);
+        fflush(log_file); 
+        
+        sprintf(model_filename, "%s/models/model_%d", logs_folder, iteration);
+        HMM_save(model, model_filename); 
 
         if (prob_new <= prob_priv+epsilon) {
             converged = 1;
+            printf("Convergence achieved after %d iterations.\n", iteration);
         }
         prob_priv = prob_new;
     }
+
+    fclose(log_file);
+
+    // Open the result file in append mode
+    FILE *result_fp = fopen(result_file, "a");
+    if (result_fp == NULL) {
+        perror("Error opening result file");
+        HMM_destroy(model);
+        fclose(log_file);
+    }
+
+    fprintf(result_fp, "%d, %f, %f\n", iteration, prob_new, prob_new - prob_original);
+
 
     // Return the learned model
     return model;
