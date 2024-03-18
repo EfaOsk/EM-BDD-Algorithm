@@ -10,14 +10,14 @@ typedef struct HMM {
     double **A; // Transition probability matrix
     double **B; // Observation probability matrix
     double *C;  // Initial state probability vector
-    const char *name;
+    char *name;
 } HMM;
 
 
 // Prototypes for HMM management functions (from HMM_management.c)
 
-HMM* HMM_create(int N, int M, const char *name);
-void HMM_destroy(const HMM *hmm);
+HMM* HMM_create(int N, int M, char *name);
+void HMM_destroy(HMM *hmm);
 void HMM_copy(HMM* dest, const HMM* src);
 void HMM_print(const HMM *hmm);
 void HMM_save(const HMM *hmm, const char *filename);
@@ -27,24 +27,22 @@ void HMM_validate(const HMM *hmm);
 
 
 // Prototypes for algorithm functions (from HMM_algorithms.c)
-double **forward(const HMM *hmm, const int *observations, int T);
-double **backward(const HMM *hmm, const int *observations, int T);
-double **forward_log(const HMM *hmm, const int *observations, int T);
-double **backward_log(const HMM *hmm, const int *observations, int T);
+// double **forward(const HMM *hmm, const int *observations, int T);
+// double **backward(const HMM *hmm, const int *observations, int T);
+// double **forward_log(const HMM *hmm, const int *observations, int T);
+// double **backward_log(const HMM *hmm, const int *observations, int T);
 double log_likelihood(const HMM *hmm, const int *observations, int T);
 double log_likelihood_forward(const HMM *hmm, const int *observations, int T);
 double log_likelihood_forward_multiple(const HMM *hmm, int **observations, int num_sequences, int T);
 void calculate_Xi(HMM *hmm, double ***Xi, double **alpha, double **beta, int *observations, int T);
 void calculate_gamma(HMM *hmm, double **gamma, double **alpha, double **beta, int *observations, int T);
-HMM* HMM_update(HMM *hmm, double **alpha, double **beta, int *observations, int T);
-HMM* BW_learn(HMM *hypothesis_hmm, int T, int O[T], double epsilon, const char *logs_folder, const char *result_file);
-HMM* BW_learn_multiple(HMM *hypothesis_hmm, int num_sequences, int **observations, int T, double epsilon, const char *logs_folder, const char *result_file);
+HMM* BW_learn(HMM *hypothesis_hmm, int num_sequences, int **observations, int T, double epsilon, const char *logs_folder, const char *result_file);
 
 // Prototypes for utility functions (from HMM_utils.c)
 
 int* HMM_generate_sequence(const HMM *hmm, int T);
 static int choose_from_distribution(double *probabilities, int size);
-HMM* HMM_random_create(int N, int M, const char *name);
+HMM* HMM_random_create(int N, int M, char *name);
 void HMM_draw(const HMM *hmm, const char *dotFileName);
 
 

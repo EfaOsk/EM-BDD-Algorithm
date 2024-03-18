@@ -522,6 +522,7 @@ HMM* EMBDD_learn( HMM *hypothesis_hmm, int num_sequences, int **observations, in
         (lookup_table_variables)[id] = (int *)malloc(4 * sizeof(int));
     }
 
+    printf("Building the BDD ...\n");
     DdNode **F_obs = build_F_seq(manager, N, M, num_sequences, T, observations, lookup_table_variables);
 
     int numVars = Cudd_ReadSize(manager);
@@ -574,7 +575,7 @@ HMM* EMBDD_learn( HMM *hypothesis_hmm, int num_sequences, int **observations, in
         // Step 4: M-step
         // Step 4 (a) : update M
 
-        const HMM *new_hmm = BDD_update(model, eta);
+        HMM *new_hmm = BDD_update(model, eta);
 
 
         prob_new = log_likelihood_forward_multiple(new_hmm, observations, num_sequences, T);

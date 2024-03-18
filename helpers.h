@@ -24,6 +24,9 @@ struct DoubleMatrix
 double** allocate_matrix(int rows, int cols, double initialValue);
 double*** allocate_3D_matrix(int depth, int rows, int cols, double initialValue);
 double**** allocate_4D_matrix(int height, int depth, int rows, int cols, double initialValue);
+void reset_matrix(double **matrix, int rows, int cols, double value);
+void reset_3D_matrix(double ***matrix, int depth, int rows, int cols, double value);
+void reset_4D_matrix(double ****matrix, int height, int depth, int rows, int cols, double value);
 void free_matrix(double **matrix, int rows);
 void free_3D_matrix(double ***matrix, int rows, int cols);
 void free_4D_matrix(double**** matrix, int height, int depth, int rows);

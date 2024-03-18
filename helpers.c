@@ -151,6 +151,41 @@ void free_4D_matrix(double**** matrix, int height, int depth, int rows) {
 }
 
 
+void reset_matrix(double **matrix, int rows, int cols, double value) {
+    if (matrix != NULL) {
+        for (int i = 0; i < rows; i++) {
+            for (int j = 0; j < cols; j++) {
+                matrix[i][j] = value;
+            }
+        }
+    }
+}
+
+void reset_3D_matrix(double ***matrix, int depth, int rows, int cols, double value) {
+    for (int d = 0; d < depth; d++) {        
+        for (int i = 0; i < rows; i++) {
+            for (int j = 0; j < cols; j++) {
+                matrix[d][i][j] = value;
+            }
+        }
+    }
+}
+
+
+void reset_4D_matrix(double ****matrix, int height, int depth, int rows, int cols, double value) {
+    for (int h = 0; h < height; h++) {
+        for (int d = 0; d < depth; d++) {        
+            for (int i = 0; i < rows; i++) {
+                for (int j = 0; j < cols; j++) {
+                    matrix[h][d][i][j] = value;
+                }
+            }
+        }
+    }
+}
+
+
+
 double log_sum_exp(double a, double b) {
     double max_val = (a > b) ? a : b;
     if (a == -INFINITY) {

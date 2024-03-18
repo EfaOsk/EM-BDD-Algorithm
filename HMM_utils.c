@@ -70,7 +70,7 @@ void HMM_draw(const HMM *hmm, const char *dotFileName)
  * @param name  The name or identifier for the HMM.
  * @return      A pointer to the randomly created HMM.
  */
-HMM* HMM_random_create(int N, int M, const char *name)
+HMM* HMM_random_create(int N, int M, char *name)
 {
 
     HMM* hmm = HMM_create(N, M, name);

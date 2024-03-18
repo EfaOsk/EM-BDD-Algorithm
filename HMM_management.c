@@ -13,7 +13,7 @@
  * @param name  The name or identifier for the HMM.
  * @return      A pointer to the created HMM.
  */
-HMM* HMM_create(int N, int M, const char *name) 
+HMM* HMM_create(int N, int M, char *name) 
 {
     HMM *hmm = (HMM *)malloc(sizeof(HMM));
     if (hmm == NULL) {
@@ -46,33 +46,30 @@ HMM* HMM_create(int N, int M, const char *name)
  * 
  * @param hmm A pointer to the HMM to be destroyed.
  */
-void HMM_destroy(const HMM *hmm) 
+void HMM_destroy(HMM *hmm) 
 {
-    HMM *modifiable_hmm = (HMM *)hmm;
-
-    if (modifiable_hmm != NULL) {
-        for (int i = 0; i < modifiable_hmm->N; i++) {
-            free(modifiable_hmm->A[i]);
-            free(modifiable_hmm->B[i]);
+    if (hmm != NULL) {
+        free(hmm->name);
+        for (int i = 0; i < hmm->N; i++) {
+            free(hmm->A[i]);
+            free(hmm->B[i]);
         }
-        free(modifiable_hmm->A);
-        free(modifiable_hmm->B);
-        free(modifiable_hmm->C);
-        free(modifiable_hmm);
+        free(hmm->A);
+        free(hmm->B);
+        free(hmm->C);
+        free(hmm);
     }
-
 }
 
-
 void HMM_copy(HMM* dest, const HMM* src)
-{
-        
+{ 
     // Copy basic fields
     dest->N = src->N;
     dest->M = src->M;
     
     // Copy name
-    dest->name = strdup(src->name);  // Remember to free the old name in dest if it was dynamically allocated
+    free(dest->name);
+    dest->name = strdup(src->name);
 
     // Copy A matrix
     for (int i = 0; i < src->N; ++i) {
