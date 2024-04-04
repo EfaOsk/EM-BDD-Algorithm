@@ -593,6 +593,9 @@ HMM* EMBDD_learn( HMM *hypothesis_hmm, int num_sequences, int **observations, in
             ++iteration, prob_new, prob_new - prob_priv, iteration_time);
         fflush(log_file); 
         
+        printf("Iteration %d: Log-likelihood = %f, Improvement = %f, Time = %f seconds\n", 
+            iteration, prob_new, prob_new - prob_priv, iteration_time);
+
         sprintf(model_filename, "%s/models/model_%d", logs_folder, iteration);
         HMM_save(model, model_filename); 
         if (prob_new <= prob_priv+epsilon) {

@@ -41,10 +41,10 @@ void evaluate_and_log_model(HMM* learned_model, HMM* original_model, int** seque
 
 int main(int argc, char *argv[]) {
 
-    HMM **example_models = initialize_example_models_small();
+    HMM **example_models = initialize_example_models_big();
     
-    int T = 50;
-    int num_sequences = 1000;
+    int T = 5;
+    int num_sequences = 100;
     double epsilon =  0.01;
     HMM *hypothesis_hmm, *learned_model_BW, *learned_model_EMBDD;
     char logs_folder[256]; 
@@ -52,7 +52,7 @@ int main(int argc, char *argv[]) {
     obs_seq = malloc(num_sequences * sizeof(int*));
 
     
-    for (int m = 0; m < 1; m++) {
+    for (int m = 0; m < 10; m++) {
         for (int obs = 0; obs < 1; obs++) {
             for (int j = 0; j < num_sequences; j++) {
                 obs_seq[j] = HMM_generate_sequence(example_models[m], T);
