@@ -70,8 +70,8 @@ void initialize_large_model_with_varying_structure(HMM *model, int numStates, in
 HMM** initialize_example_models_large() {
     HMM **models = (HMM **)malloc(NUM_LARGE_MODELS * sizeof(HMM *));
     // Assuming larger models have more states and observations
-    int numStatesArr[NUM_LARGE_MODELS] = {20, 25, 30, 35, 40, 45, 50, 55, 60, 65};
-    int numObservationsArr[NUM_LARGE_MODELS] = {15, 20, 25, 30, 35, 40, 45, 50, 55, 60};
+    int numStatesArr[NUM_LARGE_MODELS+1] = {10, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65};
+    int numObservationsArr[NUM_LARGE_MODELS+1] = {5, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60};
 
     for (int i = 0; i < NUM_LARGE_MODELS; i++) {
         char modelName[50];

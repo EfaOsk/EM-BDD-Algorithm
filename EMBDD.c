@@ -207,7 +207,7 @@ void CalculateForward(DdManager* manager, DdNode** F_seq, const HMM *hmm, int T,
 }
 
 
-void InitNodeData(DdManager* manager, DdNode** F_seq, int T, int num_sequences) {
+void InitNodeData(DdManager* manager, DdNode** F_seq, int num_sequences) {
     int numVars = Cudd_ReadSize(manager); 
     nodeData = (NodeDataList **)malloc((numVars + 1) * sizeof(NodeDataList*));
 
@@ -340,7 +340,7 @@ void computeConditionalExpectations(DdManager *manager, const HMM *hmm, int T, d
         int index = Cudd_ReadInvPerm(manager, level);
         int x = lookup_table_variables[index][0];
         int i = lookup_table_variables[index][1];
-        int t = lookup_table_variables[index][2];
+        // int t = lookup_table_variables[index][2];
         int j = lookup_table_variables[index][3];
         while (node != NULL) {
             DdNode *lowChild = Cudd_E(node->node);
@@ -389,7 +389,7 @@ void computeConditionalExpectations(DdManager *manager, const HMM *hmm, int T, d
     for (int index = 0; index < numVars; index++) {
         int x = lookup_table_variables[index][0];
         int i = lookup_table_variables[index][1];
-        int t = lookup_table_variables[index][2];
+        // int t = lookup_table_variables[index][2];
         int j = lookup_table_variables[index][3];
         temp += D[index];
         if (j == 0) {
@@ -517,8 +517,8 @@ HMM* EMBDD_learn( HMM *hypothesis_hmm, int num_sequences, int **observations, in
     Cudd_AutodynEnable(manager, CUDD_REORDER_SAME);
     
     int **lookup_table_variables;
-    lookup_table_variables = (int **)malloc((N*T*(M-1)+(N-1)+(N*(T-1)*(N-1))) * sizeof(int *));
-    for (int id = 0; id <(N*T*(M-1)+(N-1)+(N*(T-1)*(N-1))); id++) {
+    lookup_table_variables = (int **)malloc((N*(M-1)+(N-1)+(N*(N-1))) * sizeof(int *));
+    for (int id = 0; id <(N*(M-1)+(N-1)+(N*(N-1))); id++) {
         (lookup_table_variables)[id] = (int *)malloc(4 * sizeof(int));
     }
 
@@ -551,7 +551,7 @@ HMM* EMBDD_learn( HMM *hypothesis_hmm, int num_sequences, int **observations, in
     double ***gamma = allocate_3D_matrix(3, N, tmp, 0.0);
     double *D = malloc((numVars+1) * sizeof(double));
 
-    InitNodeData(manager, F_obs, T, num_sequences);
+    InitNodeData(manager, F_obs, num_sequences);
 
     printf("Starting EM-BDD learning process...\n");
     while (!converged)
