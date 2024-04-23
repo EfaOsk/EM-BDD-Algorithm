@@ -52,9 +52,31 @@ void write_dds (DdManager *gbm, DdNode **ddnodearray, char* filename)
     outfile = fopen(filename,"w");
     // DdNode **ddnodearray = (DdNode**)malloc(sizeof(DdNode*)); // initialize the function array
     // ddnodearray[0] = dd;
-    Cudd_DumpDot(gbm, 2, ddnodearray, NULL, NULL, outfile); // dump the function to .dot file
+    Cudd_DumpDot(gbm, 4, ddnodearray, NULL, NULL, outfile); // dump the function to .dot file
     free(ddnodearray);
     fclose (outfile); // close the file */
+}
+
+/**
+ * @brief Generates a random sequence of length T with (whole) numbers in range 0-M
+ * 
+ * @param M int
+ * @param T int
+ * @return int* 
+ */
+int* generate_sequence(int M, int T) 
+{
+    int* sequence = malloc(T * sizeof(int));
+    if (sequence == NULL) {
+        fprintf(stderr, "Memory allocation failed\n");
+        exit(1);
+    }
+
+    for (int i = 0; i < T; i++) {
+        sequence[i] = rand() % M;
+    }
+
+    return sequence;
 }
 
 double** allocate_matrix(int rows, int cols, double initialValue) 

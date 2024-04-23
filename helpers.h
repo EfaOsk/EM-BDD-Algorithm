@@ -21,6 +21,7 @@ struct DoubleMatrix
     struct DoubleArray *data;
 };
 
+int* generate_sequence(int M, int T);
 double** allocate_matrix(int rows, int cols, double initialValue);
 double*** allocate_3D_matrix(int depth, int rows, int cols, double initialValue);
 double**** allocate_4D_matrix(int height, int depth, int rows, int cols, double initialValue);
