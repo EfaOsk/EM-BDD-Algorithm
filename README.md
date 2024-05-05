@@ -1,6 +1,7 @@
 # EM-BDD Algorithm Implementation
 
 This repository contains the complete source code for the EM-BDD (Expectation-Maximization learning with Binary Decision Diagrams) algorithm developed for learning Hidden Markov Models (HMMs). The EM-BDD algorithm leverages Binary Decision Diagrams to optimize the learning process, offering a alternative to traditional methods such as the Baum-Welch algorithm.
+Highly inspired by the work of Ishihata and colleagues in the paper [An EM algorithm on BDDs with order encoding for logic-based probabilistic models](https://proceedings.mlr.press/v13/ishihata10a).
 
 ## Authors
 - [Eva Ósk Gunnarsdóttir](https://github.com/efaosk)
