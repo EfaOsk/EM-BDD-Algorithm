@@ -36,5 +36,6 @@ void save_list(const int *list, int size, const char *filename);
 int **read_list(const char *filename);
 long get_mem_usage();
 
+int** load_dataset(const char* filename, int* num_obs, int* num_sequences, int* sequence_length);
 
 #endif

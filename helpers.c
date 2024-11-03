@@ -278,3 +278,26 @@ long get_mem_usage() {
     return myusage.ru_maxrss;
 }
 
+
+int** load_dataset(const char* filename, int* num_obs, int* num_sequences, int* sequence_length) {
+    FILE *file = fopen(filename, "r");
+    if (!file) {
+        perror("Error opening dataset file");
+        return NULL;
+    }
+
+    fscanf(file, "%d\n", num_obs);
+    fscanf(file, "%d\n", sequence_length);
+    fscanf(file, "%d\n", num_sequences);
+
+    int** sequences = malloc((*num_sequences) * sizeof(int*));
+    for (int i = 0; i < *num_sequences; i++) {
+        sequences[i] = malloc((*sequence_length) * sizeof(int));
+        for (int j = 0; j < *sequence_length; j++) {
+            fscanf(file, "%d", &sequences[i][j]);
+        }
+    }
+
+    fclose(file);
+    return sequences;
+}
