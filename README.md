@@ -5,7 +5,7 @@ The EM-BDD algorithm leverages Binary Decision Diagrams to optimize the learning
 Highly inspired by the work of Ishihata and colleagues in the paper [An EM algorithm on BDDs with order encoding for logic-based probabilistic models](https://proceedings.mlr.press/v13/ishihata10a).
 
 
-For more details on the EM-BDD algorithm developed here, see the official publication: [The EM-BDD Algorithm for Learning Hidden Markov Models}(https://link.springer.com/chapter/10.1007/978-3-031-75107-3_8).
+For more details on the EM-BDD algorithm developed here, see the official publication: [The EM-BDD Algorithm for Learning Hidden Markov Models](https://link.springer.com/chapter/10.1007/978-3-031-75107-3_8).
 
 ## Authors
 - [Eva Ósk Gunnarsdóttir](https://github.com/efaosk)
