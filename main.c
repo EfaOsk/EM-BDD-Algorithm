@@ -1,102 +1,76 @@
-// #include <stdio.h>
-// #include <stdlib.h>
-// #include <stdbool.h>
-
-#include "exampleHMM.h"
-#include "HMM.h"
-#include <math.h>
-#include "helpers.h"
-#include <sys/stat.h>
-#include <sys/types.h>
+#include <stdio.h>
 #include <stdlib.h>
-#include <time.h>
+#include <string.h>
+#include "HMM.h"
+#include "helpers.h"
 #include "BDD.h"
 
-void evaluate_and_log_model(HMM* learned_model, HMM* original_model, int** sequences, int num_sequences, int T, const char* logs_folder, const char* evaluation_file_name) {
-    // Calculate log-likelihoods
-    double log_likelihood_learned = log_likelihood_forward_multiple(learned_model, sequences, num_sequences, T);
-    double log_likelihood_original = log_likelihood_forward_multiple(original_model, sequences, num_sequences, T);
+// Function to evaluate models and log results
+void evaluate_model(HMM* model, HMM* original_model, int** sequences, int num_sequences, int sequence_length, const char* log_filename) {
+    double log_likelihood_learned = log_likelihood_forward_multiple(model, sequences, num_sequences, sequence_length);
+    double log_likelihood_original = log_likelihood_forward_multiple(original_model, sequences, num_sequences, sequence_length);
 
-    // Construct full path for the evaluation log file
-    char full_path[1024];
-    snprintf(full_path, sizeof(full_path), "%s/%s", logs_folder, evaluation_file_name);
-
-    // Open evaluation log file
-    FILE* file = fopen(full_path, "w");
-    if (!file) {
-        perror("Failed to open evaluation file");
-        return;
+    FILE* file = fopen(log_filename, "w");
+    if (file) {
+        fprintf(file, "Log-Likelihood of Learned Model: %f\n", log_likelihood_learned);
+        fprintf(file, "Log-Likelihood of Original Model: %f\n", log_likelihood_original);
+        fprintf(file, "Improvement: %f\n", log_likelihood_learned - log_likelihood_original);
+        fclose(file);
+    } else {
+        perror("Error writing log file");
     }
-
-    // Write the log-likelihood comparison to the file
-    fprintf(file, "Log-Likelihood of Learned Model: %f ; \t", log_likelihood_learned);
-    fprintf(file, "Log-Likelihood of Original Model: %f; \t", log_likelihood_original);
-    fprintf(file, "Improvement in Log-Likelihood: %f\n", log_likelihood_learned - log_likelihood_original);
-
-    // Optionally, include additional evaluations or comparisons
-
-    // Close the file
-    fclose(file);
 }
 
-int main(int argc, char *argv[]) {
-
-    HMM **example_models = initialize_example_models_small();
-    
-    int T = 50;
-    int num_sequences = 1000;
-    double epsilon =  0.01;
-    HMM *hypothesis_hmm, *learned_model_BW, *learned_model_EMBDD;
-    char logs_folder[256]; 
-    int **obs_seq;
-    obs_seq = malloc(num_sequences * sizeof(int*));
-
-    
-    for (int m = 0; m < 1; m++) {
-        for (int obs = 0; obs < 1; obs++) {
-            for (int j = 0; j < num_sequences; j++) {
-                obs_seq[j] = HMM_generate_sequence(example_models[m], T);
-            } 
-            
-            hypothesis_hmm = HMM_random_create(example_models[m]->N, example_models[m]->M, "hypothesis model");
-            printf("Baum-Welch %s\n", example_models[m]->name);
-            char result_file[256];
-            sprintf(result_file, "%s_BW_learned_model.txt", example_models[m]->name);
-            sprintf(logs_folder, "logs/%s_BW_learned_model", example_models[m]->name);
-            mkdir(logs_folder, 0777);
-            learned_model_BW = BW_learn(hypothesis_hmm, num_sequences, obs_seq, T, epsilon, logs_folder, result_file);
-
-            evaluate_and_log_model(learned_model_BW, example_models[m], obs_seq, num_sequences, T, logs_folder, "BW_evaluation.txt");
-            char bw_filename[256];
-            sprintf(bw_filename, "%s_BW_learned_model.txt", example_models[m]->name);
-            HMM_save(learned_model_BW, bw_filename);
-            HMM_destroy(learned_model_BW);
-
-            printf("EM-BDD %s\n", example_models[m]->name);
-            sprintf(result_file, "%s_EMBDD_learned_model.txt", example_models[m]->name);
-            sprintf(logs_folder, "logs/%s_EMBDD_learned_model", example_models[m]->name);
-            mkdir(logs_folder, 0777);
-            learned_model_EMBDD = EMBDD_learn(hypothesis_hmm, num_sequences, obs_seq, T, epsilon, logs_folder, result_file);
-            evaluate_and_log_model(learned_model_EMBDD, example_models[m], obs_seq, num_sequences, T, logs_folder, "EMBDD_evaluation.txt");
-            char embdd_filename[256];
-            sprintf(embdd_filename, "%s_EMBDD_learned_model.txt", example_models[m]->name);
-            HMM_save(learned_model_EMBDD, embdd_filename);
-            HMM_destroy(learned_model_EMBDD);
-
-            // Free the allocated memory after use
-            HMM_destroy(hypothesis_hmm);
-
-            for (int i = 0; i < num_sequences; i++) {
-                free(obs_seq[i]);
-            }
-        }
+int main(int argc, char* argv[])  {
+    // Check if all necessary arguments are provided
+    if (argc < 4) {
+        fprintf(stderr, "Usage: %s <dataset_file> <num_states> <epsilon>\n", argv[0]);
+        return 1;
     }
 
+    // Get parameters from command-line arguments
+    const char* dataset_file = argv[1];
+    int num_states = atoi(argv[2]);
+    double epsilon = atof(argv[3]);
 
-    // Free the allocated memory after use
-    free(obs_seq);
+    int num_observations;
+    int sequence_length;
+    int num_sequences;
 
-    free_example_models(example_models);
+    // Load dataset
+    int** sequences = load_dataset(dataset_file, &num_observations, &num_sequences, &sequence_length);
+    if (!sequences) {
+        return 1; // Exit if dataset loading fails
+    }
+
+    // Create and initialize models
+    HMM* original_model = HMM_random_create(num_states, num_observations, "Original Model");
+    HMM* hypothesis_model = HMM_random_create(num_states, num_observations, "Hypothesis Model");
+
+    /**
+    // Run Baum-Welch learning
+    printf("Running Baum-Welch...\n");
+    HMM* learned_model_bw = BW_learn(hypothesis_model, num_sequences, sequences, sequence_length, epsilon, "logs", "BW_learned_model.txt");
+    evaluate_model(learned_model_bw, original_model, sequences, num_sequences, sequence_length, "logs/BW_evaluation.txt");
+    HMM_save(learned_model_bw, "BW_learned_model.txt");
+    HMM_destroy(learned_model_bw);
+    */
+
+    // Run EM-BDD learning
+    printf("Running EM-BDD...\n");
+    HMM* learned_model_embdd = EMBDD_learn(hypothesis_model, num_sequences, sequences, sequence_length, epsilon, "logs", "EMBDD_learned_model.txt");
+    evaluate_model(learned_model_embdd, original_model, sequences, num_sequences, sequence_length, "logs/EMBDD_evaluation.txt");
+    HMM_save(learned_model_embdd, "EMBDD_learned_model.txt");
+    HMM_destroy(learned_model_embdd);
+
+    // Clean up
+    HMM_destroy(original_model);
+    HMM_destroy(hypothesis_model);
+    for (int i = 0; i < num_sequences; i++) {
+        free(sequences[i]);
+    }
+    free(sequences);
+
+    printf("Execution completed. Results stored in logs folder.\n");
     return 0;
 }
-
